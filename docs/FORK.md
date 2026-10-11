@@ -99,3 +99,41 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
   descriptor (sha256, size, package, version, signer) — a local build is never the released artifact.
 - No device run is claimed for this change. The reading controls are host-verified (unit tests +
   real builds); on-phone behaviour stays an open item until the owner checks it.
+
+Measured on this host:
+
+| Check | Result |
+| --- | --- |
+| `:app:testOnlineDebugUnitTest` | 129 cases, 0 failures, 0 skipped (26 of them new) |
+| `:app:assembleOnlineDebug` | `app-online-debug.apk`, 106,586,222 bytes, `com.jarves.mh` 1.0.7-dce.1 (9) |
+| `:app:offlineDebug` (built by the DEXCORE deploy) | `app-offline-debug.apk`, 865 MB |
+| `:app:assembleOnlineRelease` | builds; `app-online-release-unsigned.apk`, 89,146,440 bytes |
+| native runtime audit (DEXCORE) | `static_ok`, 7 native entries, 0 errors, 0 warnings |
+| witness in the built debug APK | 22 references to the new chat-control classes, `Find in conversation` present in `resources.arsc` |
+
+## 6. Release state and blockers
+
+The archive lane is prepared but not published. Curation (`apps.MobileHarness`) and the categorized
+21-language changelog for `1.0.7-dce.1` pass `archive_changelog.py ensure/gate/preflight`
+(28,604 of 36,864 bytes).
+
+Two DEXCORE-side problems stopped the publish:
+
+1. **Play-baseline hardening corrupted the Gradle script.** `_ensure_16kb_packaging`
+   (`scripts/play_baseline.py`) used `\s*` between `useLegacyPackaging` and `true`, which also
+   matches the line break, so the rewrite glued the following statement onto
+   `useLegacyPackaging = false` (`falseandroidResources.noCompress += "zst"`) and the Kotlin DSL no
+   longer compiled. Fixed to horizontal whitespace only, with a regression test in
+   `scripts/tests/test_native_extraction_policy.py`. Independently, this app needs extracted native
+   files, so `app/build.gradle.kts` now carries the documented
+   `dexcore:play-baseline allow-legacy-packaging` exemption.
+2. **An internal archive target records public URLs.** `_webdeploy_prune_latest_only_archive`
+   (`scripts/lib/website_deploy.sh`) writes app-entry URLs with a hardcoded
+   `/archive/projects/apks/…` prefix while `apps.json` declares `root: /_internal/archive/projects`,
+   so the identity audit refuses with `APK URL must be a same-origin archive path`. The internal tree
+   (`${DEXCORE_DATA_DIR}/archive/internal`) is also not the tree the website serves. The half-written
+   internal entry and artifacts from the aborted deploy were removed again.
+
+A release lane is additionally unsigned here: `release` only gets a signing config when the upstream
+`MH_UPLOAD_*` keystore is provided, so publishing the release lane needs a signing decision first.
+
