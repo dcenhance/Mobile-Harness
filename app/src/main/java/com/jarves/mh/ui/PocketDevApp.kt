@@ -48,6 +48,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -254,6 +255,13 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material.icons.filled.FormatQuote
+import com.jarves.mh.ui.chat.ChatQuote
+import com.jarves.mh.ui.chat.ChatSearch
+import com.jarves.mh.ui.chat.ReplyFoldPolicy
 import com.jarves.mh.network.ConnectionValidation
 import com.jarves.mh.network.DiscoveredModel
 import com.jarves.mh.network.ModelDiscoveryResult
@@ -4454,6 +4462,11 @@ private fun WorkspaceScreen(
     )
     val chatListState = rememberLazyListState()
     var userScrolledUp by rememberSaveable { mutableStateOf(false) }
+    // Conversation find lives here so the query, the hit position and the open state survive a tab
+    // switch inside the same workspace.
+    var chatSearchOpen by rememberSaveable { mutableStateOf(false) }
+    var chatSearchQuery by rememberSaveable { mutableStateOf("") }
+    var chatSearchIndex by rememberSaveable { mutableStateOf(-1) }
 
     val chatItemCount = state.messages.size +
         (if (state.liveProcess.isNotEmpty() || state.liveThinking) 1 else 0) +
@@ -4461,6 +4474,7 @@ private fun WorkspaceScreen(
 
     LaunchedEffect(state.activeChatId) {
         userScrolledUp = false
+        chatSearchIndex = -1
         if (chatItemCount > 0) chatListState.scrollToItem(chatItemCount - 1)
     }
 
@@ -4637,6 +4651,19 @@ private fun WorkspaceScreen(
                         }
                     }
                     IconButton(onClick = { showChats = true }) { Icon(Icons.Default.History, stringResource(R.string.ws_project_chats)) }
+                    if (selectedTab == WorkspaceTab.CHAT) {
+                        IconButton(
+                            onClick = {
+                                chatSearchOpen = !chatSearchOpen
+                                if (!chatSearchOpen) {
+                                    chatSearchQuery = ""
+                                    chatSearchIndex = -1
+                                }
+                            },
+                        ) {
+                            Icon(Icons.Default.Search, stringResource(R.string.chat_find_in_conversation))
+                        }
+                    }
                     if (state.isRunning) CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -4680,6 +4707,19 @@ private fun WorkspaceScreen(
                     thinkingActive = state.liveThinking,
                     agentKind = state.agentKind,
                     pendingAttachments = state.pendingAttachments,
+                    searchOpen = chatSearchOpen,
+                    searchQuery = chatSearchQuery,
+                    searchIndex = chatSearchIndex,
+                    onSearchQueryChange = { query ->
+                        chatSearchQuery = query
+                        chatSearchIndex = -1
+                    },
+                    onSearchIndexChange = { chatSearchIndex = it },
+                    onCloseSearch = {
+                        chatSearchOpen = false
+                        chatSearchQuery = ""
+                        chatSearchIndex = -1
+                    },
                     onAttach = {
                         attachmentLauncher.launch(arrayOf("image/*", "text/*", "application/json", "application/xml"))
                     },
@@ -6201,6 +6241,12 @@ private fun ChatTab(
     readOnly: Boolean = false,
     readOnlyBlocked: Boolean = false,
     onContinueHere: () -> Unit = {},
+    searchOpen: Boolean = false,
+    searchQuery: String = "",
+    searchIndex: Int = -1,
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchIndexChange: (Int) -> Unit = {},
+    onCloseSearch: () -> Unit = {},
 ) {
     val view = LocalView.current
     // Keep the screen on while the selected agent is working in this chat. Released automatically
@@ -6211,6 +6257,14 @@ private fun ChatTab(
     }
     var prompt by rememberSaveable { mutableStateOf("") }
     val chatScope = rememberCoroutineScope()
+    // Literal search over the saved transcript. Counts come from the message source; marking happens
+    // on what is drawn (see MessageBubble/MarkdownText).
+    val searchResult = remember(messages, searchQuery) { ChatSearch.find(messages, searchQuery) }
+    val activeSearchHit = searchResult.currentHit(searchIndex)
+    LaunchedEffect(searchResult.query, searchIndex, activeSearchHit?.messageId) {
+        val target = searchResult.hitMessageIndex(searchIndex) ?: return@LaunchedEffect
+        if (target in messages.indices) listState.animateScrollToItem(target)
+    }
     // True while the newest item (message, live panel, or approval card) is on screen.
     val readerAtBottom by remember {
         derivedStateOf {
@@ -6218,6 +6272,25 @@ private fun ChatTab(
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
+        if (searchOpen) {
+            ChatFindBar(
+                query = searchQuery,
+                onQueryChange = onSearchQueryChange,
+                status = when {
+                    searchQuery.isBlank() -> ""
+                    searchResult.hits.isEmpty() -> stringResource(R.string.chat_find_no_matches)
+                    searchResult.truncated -> stringResource(R.string.chat_find_truncated, searchResult.hits.size)
+                    else -> stringResource(
+                        R.string.chat_find_count,
+                        searchResult.position(searchIndex),
+                        searchResult.hits.size,
+                    )
+                },
+                onPrevious = { searchResult.step(searchIndex, forward = false)?.let(onSearchIndexChange) },
+                onNext = { searchResult.step(searchIndex, forward = true)?.let(onSearchIndexChange) },
+                onClose = onCloseSearch,
+            )
+        }
         Box(Modifier.weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -6225,11 +6298,20 @@ private fun ChatTab(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(messages, key = { it.id }) { message ->
+                itemsIndexed(messages, key = { _, message -> message.id }) { messageIndex, message ->
                     if (message.workItems.isNotEmpty()) {
                         WorkBlockCard(message)
                     } else {
-                        MessageBubble(message, onRunInTerminal, onOpenAttachment)
+                        MessageBubble(
+                            message = message,
+                            isNewestMessage = messageIndex == messages.lastIndex,
+                            highlightQuery = if (searchOpen) searchResult.query else "",
+                            highlightCurrentOccurrence = searchResult.occurrenceInMessage(activeSearchHit, messageIndex),
+                            isCurrentHitMessage = activeSearchHit?.messageIndex == messageIndex,
+                            onRunInTerminal = onRunInTerminal,
+                            onOpenAttachment = onOpenAttachment,
+                            onQuote = { quoted -> prompt = ChatQuote.append(prompt, ChatQuote.quote(quoted)) },
+                        )
                     }
                 }
                 if (liveProcess.isNotEmpty() || thinkingActive) {
@@ -6914,56 +6996,216 @@ private fun formatDuration(totalSeconds: Long): String = when {
     else -> stringResource(R.string.ws_duration_s, totalSeconds)
 }
 
+/** Height a folded reply is clipped to; the reader can always reopen it. */
+private val FoldedReplyHeight = 260.dp
+
 @Composable
-private fun MessageBubble(message: ChatMessage, onRunInTerminal: (String) -> Unit, onOpenAttachment: (ChatAttachment) -> Unit) {
+private fun MessageBubble(
+    message: ChatMessage,
+    isNewestMessage: Boolean,
+    highlightQuery: String,
+    highlightCurrentOccurrence: Int?,
+    isCurrentHitMessage: Boolean,
+    onRunInTerminal: (String) -> Unit,
+    onOpenAttachment: (ChatAttachment) -> Unit,
+    onQuote: (ChatMessage) -> Unit,
+) {
     val displayedText = if (!message.fromUser && message.text == "Hi! Tell me what you want to build or change.") {
         stringResource(R.string.chat_welcome)
     } else {
         message.text
     }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    // Expanded state follows the message identity, not its position: the transcript grows while a
+    // task runs and indices shift.
+    var expanded by rememberSaveable(message.id) { mutableStateOf(false) }
+    val foldable = ReplyFoldPolicy.isFoldable(message.text, message.fromUser)
+    val folded = ReplyFoldPolicy.shouldFold(message.text, message.fromUser, isNewestMessage, expanded)
+    val matchStyle = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.26f))
+    val currentStyle = SpanStyle(
+        background = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+        fontWeight = FontWeight.SemiBold,
+    )
+
+    val content: @Composable ColumnScope.() -> Unit = {
+        SelectionContainer {
+            if (message.fromUser) {
+                Text(
+                    text = AnnotatedString(message.text).withLiteralHighlight(
+                        query = highlightQuery,
+                        currentOccurrence = highlightCurrentOccurrence,
+                        matchStyle = matchStyle,
+                        currentStyle = currentStyle,
+                    ),
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            } else {
+                MarkdownText(
+                    markdown = displayedText,
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    onRunCode = onRunInTerminal,
+                    highlightQuery = highlightQuery,
+                )
+            }
+        }
+        if (!message.fromUser && message.workedMillis > 0L) {
+            Text(
+                text = stringResource(R.string.ws_worked_for, formatDuration((message.workedMillis / 1_000L).coerceAtLeast(1L))),
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+            )
+        }
+        if (message.attachments.isNotEmpty()) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                message.attachments.forEach { attachment ->
+                    AttachmentChip(attachment = attachment, onOpen = { onOpenAttachment(attachment) }, onRemove = null)
+                }
+            }
+        }
+    }
+
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromUser) Arrangement.End else Arrangement.Start) {
         Surface(
             color = if (message.fromUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(18.dp),
+            border = if (isCurrentHitMessage) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.65f))
+            } else {
+                null
+            },
             modifier = Modifier.fillMaxWidth(if (message.fromUser) .82f else .92f),
         ) {
             Column(Modifier.padding(top = 12.dp)) {
-                SelectionContainer {
-                    if (message.fromUser) {
-                        Text(
-                            text = message.text,
-                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
-                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    } else {
-                        MarkdownText(
-                            markdown = displayedText,
-                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            onRunCode = onRunInTerminal,
+                if (folded) {
+                    // A fixed-height clip: the reply keeps its real layout and only its top is shown.
+                    Box(Modifier.fillMaxWidth().height(FoldedReplyHeight).clipToBounds()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight(align = Alignment.Top, unbounded = true),
+                            content = content,
                         )
                     }
+                } else {
+                    Column(Modifier.fillMaxWidth(), content = content)
                 }
-                if (!message.fromUser && message.workedMillis > 0L) {
-                    Text(
-                        text = stringResource(R.string.ws_worked_for, formatDuration((message.workedMillis / 1_000L).coerceAtLeast(1L))),
-                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                    )
-                }
-                if (message.attachments.isNotEmpty()) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        message.attachments.forEach { attachment ->
-                            AttachmentChip(attachment = attachment, onOpen = { onOpenAttachment(attachment) }, onRemove = null)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (folded) {
+                        TextButton(onClick = { expanded = true }) {
+                            Text(
+                                stringResource(R.string.chat_show_all_lines, ReplyFoldPolicy.lineCount(message.text)),
+                                fontSize = 11.sp,
+                            )
+                        }
+                    } else if (foldable && expanded) {
+                        TextButton(onClick = { expanded = false }) {
+                            Text(stringResource(R.string.chat_collapse_reply), fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Box {
+                        var actionsOpen by remember { mutableStateOf(false) }
+                        IconButton(onClick = { actionsOpen = true }, modifier = Modifier.size(30.dp)) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                stringResource(R.string.chat_message_actions),
+                                Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        DropdownMenu(expanded = actionsOpen, onDismissRequest = { actionsOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_copy_message)) },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                onClick = {
+                                    actionsOpen = false
+                                    clipboard.setText(AnnotatedString(message.text))
+                                    Toast.makeText(context, context.getString(R.string.chat_message_copied), Toast.LENGTH_SHORT).show()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_quote_message)) },
+                                leadingIcon = { Icon(Icons.Default.FormatQuote, null) },
+                                onClick = {
+                                    actionsOpen = false
+                                    onQuote(message)
+                                },
+                            )
                         }
                     }
                 }
-                Spacer(Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatFindBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    status: String,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = {
+                    Text(stringResource(R.string.chat_find_placeholder), fontSize = 13.sp)
+                },
+                textStyle = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = status,
+                modifier = Modifier.padding(start = 8.dp),
+                fontSize = 12.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            IconButton(
+                onClick = onPrevious,
+                enabled = status.isNotEmpty(),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    stringResource(R.string.previous_match),
+                    Modifier.size(18.dp),
+                )
+            }
+            IconButton(
+                onClick = onNext,
+                enabled = status.isNotEmpty(),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    stringResource(R.string.next_match),
+                    Modifier.size(18.dp),
+                )
+            }
+            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Default.Close, stringResource(R.string.chat_find_close), Modifier.size(18.dp))
             }
         }
     }

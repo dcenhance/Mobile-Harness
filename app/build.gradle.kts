@@ -53,7 +53,7 @@ fun buildConfigString(value: String): String =
 
 android {
     namespace = "com.jarves.mh"
-    compileSdk = 36
+    compileSdk = 37
     // NDK 28 emits flexible-page-size binaries for the static PRoot loader.
     // NDK 26 accepted the max-page-size flag but still produced 4 KiB LOAD
     // segments, which crash under 16 KiB Android runtimes. Builders may still
@@ -72,6 +72,7 @@ android {
     }
 
     defaultConfig {
+        targetSdk = 37
         applicationId = "com.jarves.mh"
         minSdk = 28
         // The direct APK retains the proven target-28 PRoot execution path. The
@@ -79,8 +80,8 @@ android {
         targetSdk = if (playBuild) 36 else 28
         // Keep literal defaults so F-Droid's static manifest parser can detect
         // the tagged release. Gradle properties may still override Play builds.
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.7-dce.1"
         providers.gradleProperty("appVersionCode").orNull?.toIntOrNull()?.let { versionCode = it }
         providers.gradleProperty("appVersionName").orNull?.let { versionName = it }
 
@@ -156,8 +157,7 @@ android {
         }
     }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    packaging.jniLibs.useLegacyPackaging = true
-    androidResources.noCompress += "zst"
+    packaging.jniLibs.useLegacyPackaging = falseandroidResources.noCompress += "zst"
 }
 
 tasks.matching { it.name.startsWith("mergeOffline") && it.name.endsWith("Assets") }

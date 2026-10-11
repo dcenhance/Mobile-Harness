@@ -69,24 +69,25 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     color: Color = Color.Unspecified,
     onRunCode: ((String) -> Unit)? = null,
+    highlightQuery: String = "",
 ) {
     val blocks = remember(markdown) { parseMarkdown(markdown) }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         blocks.forEach { block ->
             when (block) {
-                is MarkdownBlock.Header -> HeaderBlock(block)
+                is MarkdownBlock.Header -> HeaderBlock(block, highlightQuery)
                 is MarkdownBlock.CodeBlock -> CodeSnippetBlock(block, onRunCode)
-                is MarkdownBlock.BulletItem -> BulletBlock(block, color)
-                is MarkdownBlock.NumberedItem -> NumberedBlock(block, color)
-                is MarkdownBlock.BlockQuote -> QuoteBlock(block)
+                is MarkdownBlock.BulletItem -> BulletBlock(block, color, highlightQuery)
+                is MarkdownBlock.NumberedItem -> NumberedBlock(block, color, highlightQuery)
+                is MarkdownBlock.BlockQuote -> QuoteBlock(block, highlightQuery)
                 is MarkdownBlock.HorizontalRule -> HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
                 is MarkdownBlock.Paragraph -> {
                     Text(
-                        text = formatInlineMarkdown(block.text),
+                        text = highlightedMarkdown(block.text, highlightQuery),
                         style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
                         color = color,
                     )
@@ -96,15 +97,32 @@ fun MarkdownText(
     }
 }
 
+/**
+ * Inline markdown with every literal occurrence of [query] marked.
+ *
+ * The renderer drops markers such as `**`, so the mark is placed on the drawn text. A conversation
+ * find therefore marks every occurrence inside a reply, while the single active occurrence is
+ * marked only where the text is rendered verbatim (the reader's own messages).
+ */
 @Composable
-private fun HeaderBlock(header: MarkdownBlock.Header) {
+private fun highlightedMarkdown(text: String, query: String): AnnotatedString {
+    val base = formatInlineMarkdown(text)
+    if (query.isBlank()) return base
+    val matchStyle = SpanStyle(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.26f))
+    return remember(base, query, matchStyle) {
+        base.withLiteralHighlight(query, currentOccurrence = null, matchStyle = matchStyle)
+    }
+}
+
+@Composable
+private fun HeaderBlock(header: MarkdownBlock.Header, highlightQuery: String) {
     val style = when (header.level) {
         1 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp)
         2 -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp)
         else -> MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
     }
     Text(
-        text = formatInlineMarkdown(header.text),
+        text = highlightedMarkdown(header.text, highlightQuery),
         style = style,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = 4.dp),
@@ -112,7 +130,7 @@ private fun HeaderBlock(header: MarkdownBlock.Header) {
 }
 
 @Composable
-private fun BulletBlock(item: MarkdownBlock.BulletItem, color: Color) {
+private fun BulletBlock(item: MarkdownBlock.BulletItem, color: Color, highlightQuery: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -126,7 +144,7 @@ private fun BulletBlock(item: MarkdownBlock.BulletItem, color: Color) {
                 .background(PocketOrange, CircleShape),
         )
         Text(
-            text = formatInlineMarkdown(item.text),
+            text = highlightedMarkdown(item.text, highlightQuery),
             style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
             color = color,
             modifier = Modifier.weight(1f),
@@ -135,7 +153,7 @@ private fun BulletBlock(item: MarkdownBlock.BulletItem, color: Color) {
 }
 
 @Composable
-private fun NumberedBlock(item: MarkdownBlock.NumberedItem, color: Color) {
+private fun NumberedBlock(item: MarkdownBlock.NumberedItem, color: Color, highlightQuery: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -146,7 +164,7 @@ private fun NumberedBlock(item: MarkdownBlock.NumberedItem, color: Color) {
             modifier = Modifier.padding(end = 6.dp),
         )
         Text(
-            text = formatInlineMarkdown(item.text),
+            text = highlightedMarkdown(item.text, highlightQuery),
             style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
             color = color,
             modifier = Modifier.weight(1f),
@@ -155,7 +173,7 @@ private fun NumberedBlock(item: MarkdownBlock.NumberedItem, color: Color) {
 }
 
 @Composable
-private fun QuoteBlock(quote: MarkdownBlock.BlockQuote) {
+private fun QuoteBlock(quote: MarkdownBlock.BlockQuote, highlightQuery: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -172,7 +190,7 @@ private fun QuoteBlock(quote: MarkdownBlock.BlockQuote) {
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            text = formatInlineMarkdown(quote.text),
+            text = highlightedMarkdown(quote.text, highlightQuery),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontStyle = FontStyle.Italic,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
