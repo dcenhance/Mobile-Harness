@@ -157,7 +157,11 @@ android {
         }
     }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    packaging.jniLibs.useLegacyPackaging = falseandroidResources.noCompress += "zst"
+    // dexcore:play-baseline allow-legacy-packaging: the PRoot loader and the PRoot binary are
+    // packaged as carriers and executed as real files from nativeLibraryDir, so they must be
+    // extracted. Uncompressed in-APK loading would leave that directory without a runnable file.
+    packaging.jniLibs.useLegacyPackaging = true
+    androidResources.noCompress += "zst"
 }
 
 tasks.matching { it.name.startsWith("mergeOffline") && it.name.endsWith("Assets") }
