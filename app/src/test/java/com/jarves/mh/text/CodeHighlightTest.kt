@@ -163,7 +163,7 @@ class CodeHighlightTest {
 
     @Test
     fun `xml tags, attributes and values are distinguished`() {
-        val source = """<LinearLayout <!-- note --> orientation="vertical"><TextView /></LinearLayout>"""
+        val source = """<!-- note --><LinearLayout orientation="vertical"><TextView /></LinearLayout>"""
         val kinds = kindsOf(source, CodeLanguage.XML)
         assertTrue(kinds.contains("LinearLayout" to TokenKind.TYPE))
         assertTrue(kinds.contains("orientation" to TokenKind.PROPERTY))
@@ -205,6 +205,26 @@ class CodeHighlightTest {
     }
 
     @Test
+    fun `line starts and per-line spans line up with the file`() {
+        val text = "fun a() {\n  val b = 1\n}"
+        val starts = CodeHighlight.lineStarts(text)
+        // Line 1 is nine characters plus its newline, so line 2 starts at 10 and line 3 at 22.
+        assertEquals(listOf(0, 10, 22), starts.toList())
+        val spans = CodeHighlight.spansFor(text, CodeLanguage.KOTLIN)
+        val secondLine = CodeHighlight.spansForLine(starts[1], starts[2] - 1, spans)
+        // Line-local offsets: `val` right at the start of the indented line, the number further right.
+        assertTrue(secondLine.any { it.kind == TokenKind.KEYWORD && it.start == 2 && it.end == 5 })
+        assertTrue(secondLine.any { it.kind == TokenKind.NUMBER && text.substring(starts[1] + it.start, starts[1] + it.end) == "1" })
+        assertTrue(secondLine.all { it.start >= 0 && it.end <= 11 })
+    }
+
+    @Test
+    fun `an empty line has no spans`() {
+        assertEquals(listOf(0), CodeHighlight.lineStarts("").toList())
+        assertTrue(CodeHighlight.spansForLine(5, 5, listOf(HighlightSpan(0, 9, TokenKind.KEYWORD))).isEmpty())
+    }
+
+    @Test
     fun `every produced span is usable for a mixed corpus`() {
         val corpus = mapOf(
             CodeLanguage.KOTLIN to "fun main() { val s = \"x\" /* c */ return 0 }",
@@ -212,7 +232,7 @@ class CodeHighlightTest {
             CodeLanguage.JAVASCRIPT to "const f = async () => { return 1 } // done",
             CodeLanguage.TYPESCRIPT to "interface A { name: string }\nconst x: number = 2",
             CodeLanguage.PYTHON to "class A:\n    def b(self): return None",
-            CodeLanguage.SHELL to "for f in *; do echo \"$f\"; done",
+            CodeLanguage.SHELL to "for f in *; do echo \"\$f\"; done",
             CodeLanguage.JSON to "{\"a\": [1, 2, null]}",
             CodeLanguage.XML to "<a b=\"c\">d</a>",
             CodeLanguage.CSS to "a { b: 1px; }",

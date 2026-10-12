@@ -296,6 +296,8 @@ import com.jarves.mh.ui.attach.AttachmentPreview
 import com.jarves.mh.ui.attach.rememberAttachmentThumbnail
 import com.jarves.mh.ui.theme.AppLanguage
 import com.jarves.mh.ui.theme.AppThemeMode
+import com.jarves.mh.text.CodeHighlight
+import com.jarves.mh.text.CodeLanguage
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Rule
 import com.jarves.mh.runtime.AgentGuidance
@@ -5830,6 +5832,21 @@ private fun FileViewerScreen(
     val codeText = if (darkTheme) Color(0xFFE2E8F0) else MaterialTheme.colorScheme.onSurface
     val gutterText = if (darkTheme) Color(0xFF6E7681) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val toolbarBackground = if (darkTheme) Color(0xFF161B22) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    // Editor colours: read off the GitHub-dark-like palette the editor already uses, so the editor keeps
+    // its look. No amber/gold; the accent is the app's own orange. Built directly (not inside remember),
+    // because reading the theme is a composable gesture.
+    val codeColors = CodeHighlightColors(
+        keyword = if (darkTheme) Color(0xFFFF7B72) else MaterialTheme.colorScheme.primary,
+        type = if (darkTheme) Color(0xFF79C0FF) else MaterialTheme.colorScheme.tertiary,
+        string = if (darkTheme) Color(0xFFA5D6FF) else Color(0xFF1A7F37),
+        comment = if (darkTheme) Color(0xFF8B949E) else MaterialTheme.colorScheme.onSurfaceVariant,
+        number = if (darkTheme) Color(0xFF79C0FF) else MaterialTheme.colorScheme.secondary,
+        annotation = if (darkTheme) Color(0xFFD2A8FF) else MaterialTheme.colorScheme.primary,
+        property = if (darkTheme) Color(0xFF7EE787) else MaterialTheme.colorScheme.onSurface,
+    )
+    val editorTransformation = remember(file.path, codeColors) {
+        CodeHighlightTransformation(CodeHighlight.languageForFile(file.path), codeColors)
+    }
 
     Scaffold(
         topBar = {
@@ -6001,6 +6018,9 @@ private fun FileViewerScreen(
                                     color = codeText,
                                 ),
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                // Colour only: the transformation returns the same characters, so the
+                                // gutter beside the field and every caret offset stay untouched.
+                                visualTransformation = editorTransformation,
                             )
                         }
                     }
@@ -6016,6 +6036,13 @@ private fun FileViewerScreen(
                 }
                 else -> {
                     // Code / plain-text viewer
+                    // Coloured once for the whole file, then sliced per line: colouring each line on its own
+                    // would re-scan the file, and a large file would feel it.
+                    val viewerLanguage = remember(file.path) { CodeHighlight.languageForFile(file.path) }
+                    val viewerSpans = remember(file.path, file.content, viewerLanguage) {
+                        CodeHighlight.spansFor(file.content, viewerLanguage)
+                    }
+                    val viewerLineStarts = remember(file.content) { CodeHighlight.lineStarts(file.content) }
                     val codeListState = rememberLazyListState()
                     val targetIndex = file.targetLine?.minus(1)?.coerceAtLeast(0)
                     LaunchedEffect(file.path, targetIndex) {
@@ -6031,6 +6058,14 @@ private fun FileViewerScreen(
                         val lines = file.content.lines()
                         items(lines.size) { idx ->
                             val isTargetLine = idx == targetIndex
+                            val line = lines[idx]
+                            val lineStart = viewerLineStarts.getOrElse(idx) { 0 }
+                            val lineText = remember(line, viewerSpans, viewerLineStarts) {
+                                AnnotatedString.Builder(line).also { builder ->
+                                    CodeHighlight.spansForLine(lineStart, lineStart + line.length, viewerSpans)
+                                        .forEach { span -> builder.addStyle(codeColors.styleFor(span.kind), span.start, span.end) }
+                                }.toAnnotatedString()
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -6049,7 +6084,7 @@ private fun FileViewerScreen(
                                     textAlign = TextAlign.End,
                                 )
                                 Text(
-                                    text = lines[idx],
+                                    text = lineText,
                                     modifier = Modifier
                                         .weight(1f)
                                         .padding(end = 12.dp),

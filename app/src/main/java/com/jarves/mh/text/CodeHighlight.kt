@@ -58,6 +58,33 @@ object CodeHighlight {
         }
     }
 
+    /**
+     * Offset of every line start. Index `i` is the first character of line `i`, so a per-line renderer
+     * can colour a line without scanning the text again.
+     */
+    fun lineStarts(text: String): IntArray {
+        val starts = ArrayList<Int>()
+        starts += 0
+        text.forEachIndexed { index, character -> if (character == '\n') starts += index + 1 }
+        return starts.toIntArray()
+    }
+
+    /**
+     * The spans of one line, in offsets relative to that line. [spans] must be the result of
+     * [spansFor] for the whole text (passing it in keeps a per-line renderer linear instead of
+     * re-parsing the file for every line).
+     */
+    fun spansForLine(lineStart: Int, lineEnd: Int, spans: List<HighlightSpan>): List<HighlightSpan> {
+        if (lineEnd <= lineStart) return emptyList()
+        return spans.filter { it.start < lineEnd && it.end > lineStart }.map { span ->
+            HighlightSpan(
+                start = (span.start - lineStart).coerceAtLeast(0),
+                end = (span.end - lineStart).coerceAtMost(lineEnd - lineStart),
+                kind = span.kind,
+            )
+        }
+    }
+
     private val keywordSets: Map<CodeLanguage, Set<String>> = mapOf(
         CodeLanguage.KOTLIN to setOf(
             "fun", "val", "var", "if", "else", "when", "for", "while", "do", "return", "class", "object",

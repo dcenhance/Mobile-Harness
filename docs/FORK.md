@@ -38,11 +38,11 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
 | Screen capture and image frames handed to the model (`see_screen`, vision parts) | `grep -rn 'MediaProjection\|createScreenCaptureIntent\|input_image\|image_url'` → 0 | **implemented here** (§3.7), via the workspace: the frame becomes an attachment the agent can read |
 | Native readiness measured instead of assumed (page size, real ELF alignment) | DcentIDE reads `Os.sysconf(_SC_PAGESIZE)`; here `16384`/`getPageSize`/`_SC_PAGESIZE` → 0 hits while `RuntimeCompatibility` only checked the ABI | **implemented here** (§3.8) |
 | Device actions available to the agent (list/install/uninstall/launch apps) | `getLaunchIntentForPackage` exists once, in the app's own install flow (`runtime/AndroidAppInstaller.kt`); no inventory query (`queryIntentActivities`/`getInstalledPackages`/`getInstalledApplications` → 0, no `<queries>` block) | **open** — needs a tool bridge for the PRoot CLIs (loopback endpoint + shell wrapper in the runtime PATH), read-only first |
-| Project rules the agent always follows (managed instruction file) | `CLAUDE.md`/`AGENTS.md` → 0 hits; the installer writes only `.claude/settings.json`, so every conversation starts without project guidance | **open**, small |
+| Editor comfort: syntax highlighting, word wrap | `keywords`/`tokenize`/`wordWrap` → 0 in the file editor (chat code blocks are highlighted by `ui/MarkdownText.kt`) | **highlighting implemented here** (§3.10); word wrap deliberately not: the editor pairs a 48 dp line-number gutter with a horizontal scroll and a 720 dp minimum width, so wrapping would desynchronise the gutter |
+| Standing project rules and a working style the user can edit, with a visible prompt | `CLAUDE.md`/`AGENTS.md` → 0 hits and no prompt preview; the installer wrote only `.claude/settings.json` | **implemented here** (§3.9) |
 | What a run costs / how full the context is | no agent usage parsing (`total_cost`, `input_tokens`, `cache_read`, `num_turns` → 0 outside the local API gateway), no session usage state | **open** |
 | Native agent session continuation | both bridges re-send the transcript into the prompt (`ClaudeRuntimeBridge.buildContextPrompt`, `DshRuntimeBridge.buildContextPrompt`); `--resume`/`session_id` → 0 hits, so an app restart cannot pick up an existing agent session | **open** — per-CLI knowledge required |
 | Import a project folder from the phone (SAF tree) | `ACTION_OPEN_DOCUMENT_TREE`/`OpenDocumentTree` → 0; only ZIP import exists (`importZipLauncher`) | **open**, small |
-| Editor comfort: syntax highlighting, word wrap | `keywords`/`tokenize`/`wordWrap` → 0 in the file editor (chat code blocks are highlighted by `ui/MarkdownText.kt`) | **open**, medium |
 | Project backup/restore and chat export | `backupProject`/`restoreProject`/`exportChat` → 0; agent edits are covered by `WorkspaceCheckpoints` (94 refs) and a project ZIP export exists | **open**, small |
 | Interactive approvals outside Claude Code | `DshRuntimeBridge.respondToApproval` and `AntigravityRuntimeBridge.respondToApproval` are deliberate no-ops | upstream product decision, not a defect |
 | Remote/LAN build server, project catalog (DCIX equivalent), battery-handoff receipts | no corresponding source | out of scope for this fork |
@@ -198,6 +198,29 @@ user could neither add standing guidance nor see what the agent actually receive
 - 13 JVM tests pin the composition (order, empty case, request last), the caps, the collapse, the mirror
   document and that preview and send are the same call.
 
+### 3.10 Editor colouring without touching the text (1.0.7-dce.8)
+
+The file editor and the file view showed code as plain text (`keywords`/`tokenize` → 0 hits in the tree;
+only chat code blocks were highlighted, by `ui/MarkdownText.kt`).
+
+- `text/CodeHighlight.kt` — a linear token pass per language family (Kotlin/Java/JS/TS/Python, JSON, XML,
+  CSS, shell, YAML, Markdown) producing ordered, non-overlapping `HighlightSpan`s for keywords, built-in
+  types, strings, comments, numbers, annotations and keys. Strings and comments are consumed as a whole,
+  so a keyword inside one is never marked twice; an unterminated string ends at the line (or the file);
+  files above 200k characters stay plain rather than colouring a huge file on a phone.
+- `ui/CodeHighlightTransformation.kt` — a `VisualTransformation` that returns the *same characters* with
+  span styles and `OffsetMapping.Identity`, so the editor's 48 dp line-number gutter keeps its alignment
+  and every caret offset stays valid (the risk DcentIDE documents for editor gutters).
+- The read-only file view colours per line: the spans and line starts are computed once per file, then
+  sliced per line (`spansForLine`), so the renderer stays linear instead of re-scanning the file.
+- Colours come from the editor's existing dark palette (GitHub-dark-like) with no amber/gold and the
+  app's own accent for annotations.
+- 26 JVM tests: 21 for the token pass (per-language recognition, a keyword inside a string/comment,
+  escaped quotes, triple-quoted strings, unterminated strings, JSON keys vs values, YAML keys, XML tags,
+  CSS at-rules, Markdown fences, the size bound, line starts and per-line slicing, and an
+  ordered/non-overlapping invariant over a mixed corpus) and 5 for the transformation (text unchanged,
+  identity offset mapping, colours attached per kind, plain text and empty input).
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive
@@ -244,8 +267,8 @@ as history in the internal archive and are no longer the delivery path.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.7).apk` | 106,986,041 | see §6.1 | debug lab cert `ab327339…` |
-| release | `release/MobileHarness(1.0.7-dce.7).apk` | 89,485,756 | see §6.1 | debug lab cert `ab327339…` |
+| debug | `debug/MobileHarness(1.0.7-dce.8).apk` | 107,023,361 | `8a8bd68cec4ee3a1eeb513a66292964bc85b1911f864c8494de9f4a14dd6c0fc` | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.8).apk` | 89,490,016 | `3386b7d9c460b86635e1b9a99d8c4a22e9182b8ea61317bbcbedc3f55fd55146` | debug lab cert `ab327339…` |
 
 Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
 and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
@@ -258,22 +281,22 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.7)
+### 6.1 Measured release evidence (1.0.7-dce.8)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
 local file listing.
 
-| Lane | Artifact | Bytes | SHA-256 | Signer (descriptor + APK) |
-| --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.7).apk` | 106,986,041 | `c8aea08304a3201ae32038019d7bf6ea2e9c1d82714ebe62203f0c1173d028d4` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
-| release | `release/MobileHarness(1.0.7-dce.7).apk` | 89,485,756 | `b031259941752eda7eadcac2c84f7c461153aaca67f5eb7ab8a8a040e5b48793` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| Lane | Artifact | Bytes | SHA-256 |
+| --- | --- | --- | --- |
+| debug | `debug/MobileHarness(1.0.7-dce.8).apk` | 107,023,361 | `8a8bd68cec4ee3a1eeb513a66292964bc85b1911f864c8494de9f4a14dd6c0fc` |
+| release | `release/MobileHarness(1.0.7-dce.8).apk` | 89,490,016 | `3386b7d9c460b86635e1b9a99d8c4a22e9182b8ea61317bbcbedc3f55fd55146` |
 
-- Both lane descriptors carry `versionName 1.0.7-dce.7`, `versionCode 15`, `packageName com.jarves.mh`
-  and the SHA-256 of the bytes actually served (checked over HTTPS for the debug lane); the root
-  `update.json` points at the release bytes, every descriptor carries `notices` for all 21 languages,
-  and `debug/latest.apk` = debug, `release/latest.apk` = release, root `latest.apk` = release.
-- JVM tests for this build: **195, 0 failures, 0 skipped** (182 before, 13 new in `PromptOverlayTest`).
+- Both lane descriptors carry `versionName 1.0.7-dce.8`, `versionCode 16`, `packageName com.jarves.mh`,
+  the SHA-256 of the served bytes and `notices` for all 21 languages; the root `update.json` points at
+  the release bytes, and `release/latest.apk` and the root `latest.apk` serve the release bytes.
+- JVM tests for this build: **221, 0 failures, 0 skipped** (195 before, 26 new in `CodeHighlightTest`
+  and `CodeHighlightTransformationTest`).
 
 ### Honest limits of the earlier internal placement (still true)
 
