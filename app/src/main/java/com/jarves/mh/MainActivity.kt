@@ -1,5 +1,7 @@
 package com.jarves.mh
 
+import com.jarves.mh.dexcoreupdate.DceArchiveUpdates
+
 import android.content.Context
 import android.os.Bundle
 import android.content.ComponentCallbacks2
@@ -38,6 +40,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DceArchiveUpdates.check(this);
         enableEdgeToEdge()
         setContent {
             val vm = mainViewModel

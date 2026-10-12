@@ -1,0 +1,8 @@
+{
+  "schema": 3,
+  "slug": "MobileHarness",
+  "packageName": "com.jarves.mh",
+  "endpointSha256": "cfa3daf167bab852d7d495a515d536a62a27b0cc2538994468ff21626fde2c91",
+  "accent": "#f28c52",
+  "framework": "android"
+}
