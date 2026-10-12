@@ -34,6 +34,7 @@ import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -210,6 +211,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -258,6 +260,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.filled.FormatQuote
@@ -283,6 +286,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.CompositionLocalProvider
 import com.jarves.mh.R
+import com.jarves.mh.ui.attach.AttachmentPreview
+import com.jarves.mh.ui.attach.rememberAttachmentThumbnail
 import com.jarves.mh.ui.theme.AppLanguage
 import com.jarves.mh.ui.theme.AppThemeMode
 import androidx.compose.material.icons.filled.SmartToy
@@ -407,6 +412,9 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
         )
         state.activeProject != null && state.workspaceVisible -> WorkspaceScreen(
             state = state,
+            attachmentRootPath = remember(state.activeProject?.id, state.activeProject?.rootPath) {
+                viewModel.attachmentRootPath()
+            },
             onBack = viewModel::closeProject,
             onSend = viewModel::sendPrompt,
             onStop = viewModel::stopTask,
@@ -4389,6 +4397,7 @@ private fun WorkspaceScreen(
     onAddAttachments: (List<Uri>) -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
+    attachmentRootPath: String,
     onBuildAndRunAndroid: () -> Unit,
     onAndroidAction: (AndroidAction) -> Unit,
     onRefreshAndroidDashboard: () -> Unit,
@@ -4763,6 +4772,7 @@ private fun WorkspaceScreen(
                     },
                     onRemoveAttachment = onRemoveAttachment,
                     onOpenAttachment = onOpenAttachment,
+                    attachmentRootPath = attachmentRootPath,
                     onRunInTerminal = { command ->
                         selectedTab = WorkspaceTab.TERMINAL
                         onTerminalOpened()
@@ -6261,6 +6271,7 @@ private fun ChatTab(
     onAttach: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
+    attachmentRootPath: String = "",
     onRunInTerminal: (String) -> Unit,
     onTakePhoto: () -> Unit = {},
     queuedFollowUps: List<QueuedFollowUp> = emptyList(),
@@ -6338,6 +6349,7 @@ private fun ChatTab(
                             isCurrentHitMessage = activeSearchHit?.messageIndex == messageIndex,
                             onRunInTerminal = onRunInTerminal,
                             onOpenAttachment = onOpenAttachment,
+                            attachmentRootPath = attachmentRootPath,
                             onQuote = { quoted -> prompt = ChatQuote.append(prompt, ChatQuote.quote(quoted)) },
                         )
                     }
@@ -6458,6 +6470,7 @@ private fun ChatTab(
                         pendingAttachments.forEach { attachment ->
                             AttachmentChip(
                                 attachment = attachment,
+                                rootPath = attachmentRootPath,
                                 onOpen = null,
                                 onRemove = { onRemoveAttachment(attachment.id) },
                             )
@@ -7036,6 +7049,7 @@ private fun MessageBubble(
     isCurrentHitMessage: Boolean,
     onRunInTerminal: (String) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
+    attachmentRootPath: String = "",
     onQuote: (ChatMessage) -> Unit,
 ) {
     val displayedText = if (!message.fromUser && message.text == "Hi! Tell me what you want to build or change.") {
@@ -7094,7 +7108,12 @@ private fun MessageBubble(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 message.attachments.forEach { attachment ->
-                    AttachmentChip(attachment = attachment, onOpen = { onOpenAttachment(attachment) }, onRemove = null)
+                    AttachmentChip(
+                        attachment = attachment,
+                        rootPath = attachmentRootPath,
+                        onOpen = { onOpenAttachment(attachment) },
+                        onRemove = null,
+                    )
                 }
             }
         }
@@ -7370,12 +7389,22 @@ private fun FindInFilesScreen(
 @Composable
 private fun AttachmentChip(
     attachment: ChatAttachment,
+    rootPath: String,
     onOpen: (() -> Unit)?,
     onRemove: (() -> Unit)?,
 ) {
+    val thumbnail = rememberAttachmentThumbnail(attachment, rootPath)
     val icon = when {
         attachment.mimeType.startsWith("image/") -> Icons.Default.Image
         else -> Icons.Default.Description
+    }
+    // Only a picture can be refused for size, so this note never appears on a text attachment.
+    val subtitle = if (AttachmentPreview.refusal(attachment.mimeType, attachment.displayName, attachment.sizeBytes) ==
+        AttachmentPreview.Refusal.TOO_LARGE
+    ) {
+        "${formatFileSize(attachment.sizeBytes)} · ${stringResource(R.string.chat_attachment_no_preview)}"
+    } else {
+        formatFileSize(attachment.sizeBytes)
     }
     Surface(
         modifier = Modifier.then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier),
@@ -7384,11 +7413,21 @@ private fun AttachmentChip(
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(Modifier.padding(start = 9.dp, end = if (onRemove == null) 10.dp else 3.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(17.dp), tint = PocketOrange)
+            if (thumbnail != null) {
+                // The picture that was attached, decoded down to chip size on a worker thread.
+                Image(
+                    bitmap = thumbnail,
+                    contentDescription = attachment.displayName,
+                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Icon(icon, null, Modifier.size(17.dp), tint = PocketOrange)
+            }
             Spacer(Modifier.width(7.dp))
             Column(Modifier.widthIn(max = 180.dp)) {
                 Text(attachment.displayName, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(formatFileSize(attachment.sizeBytes), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (onRemove != null) {
                 IconButton(onClick = onRemove, modifier = Modifier.size(30.dp)) {

@@ -33,7 +33,8 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
 | Find inside a conversation (literal, per occurrence, stepping) | no search over `ChatMessage`; the only find is in-file (`FileViewerScreen`) | **implemented here** |
 | Folding of long replies with a stated line count | transcript items render the whole reply | **implemented here** |
 | Per-message actions: copy, quote into the composer | chat messages had no per-message menu; text selection was the only way to take text along | **implemented here** |
-| Project-wide text search (`total / listed / held back`, stable file-set id) | `grep -rnE 'readLines\|lineSequence\|useLines'` shows only installer/gradle property parsing, no content search | open, see §4 |
+| Project-wide text search (`total / listed / held back`, stable file-set id) | `grep -rnE 'readLines\|lineSequence\|useLines'` shows only installer/gradle property parsing, no content search | **implemented here** (§3.4) |
+| The attached picture is visible before sending | attachment chips showed a name and size only; `grep -rn 'BitmapFactory\|ImageBitmap\|asImageBitmap\|inSampleSize'` → 0 | **implemented here** (§3.6) |
 | Screen capture and image frames handed to the model (`see_screen`, vision parts) | `grep -rn 'MediaProjection\|createScreenCaptureIntent\|input_image\|image_url'` → 0 | open, see §4 |
 | Device actions available to the agent (list/install/uninstall/launch apps) | `getLaunchIntentForPackage` exists once, in the app's own install flow (`runtime/AndroidAppInstaller.kt`); no inventory query (`queryIntentActivities`/`getInstalledPackages` → 0) | open, see §4 |
 | Interactive approvals outside Claude Code | `DshRuntimeBridge.respondToApproval` and `AntigravityRuntimeBridge.respondToApproval` are deliberate no-ops | upstream product decision, not a defect |
@@ -97,6 +98,29 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
   Unquoted, the shell splits a project path containing a space and the native build dies with
   `clang: error: no such file or directory: 'Projects/MobileHarness/...'`.
 
+### 3.6 Attachment thumbnails (1.0.7-dce.4)
+
+The app could already attach a photo (`chat_take_photo`, `image/*` picker) and hand the agent its
+path, but the chip showed only a filename and a size: the person could not see which picture, in
+which orientation, was on its way to the agent.
+
+- `ui/attach/AttachmentPreview.kt` — pure decisions: which declared types and extensions are
+  pictures this build can decode (a generic `application/octet-stream` falls back to the extension,
+  a declared `image/heic` does **not** get guessed), the `MAX_PREVIEW_BYTES` bound, and the
+  power-of-two `inSampleSize` ladder (`sampleSizeFor`) that keeps a decoded photo at or above the
+  512 px chip edge instead of below it.
+- `ui/attach/AttachmentThumb.kt` — `rememberAttachmentThumbnail` decodes on `Dispatchers.IO` and
+  re-decodes only when path, size or type change; `decodeAttachmentThumbnail` re-applies the
+  workspace containment rule (`canonicalFile` inside the root, regular file, non-zero and within the
+  bound) and returns null on any failure.
+- UI: `AttachmentChip` shows the thumbnail for previewable pictures and keeps the icon otherwise; a
+  picture that is too large says `24.0 MB · no preview` next to its size instead of showing nothing.
+- The workspace root reaches the chips through one new `attachmentRootPath` parameter
+  (`PocketDevApp` → `WorkspaceScreen` → `ChatTab` → `MessageBubble` → `AttachmentChip`), resolved
+  once per active project by `MainViewModel.attachmentRootPath()`.
+- 12 JVM tests cover the type decisions, the refusal reasons, the downscale ladder (portrait and
+  landscape, exact multiples, unknown dimensions, non-positive maximum) and the cache key.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive
@@ -135,28 +159,61 @@ Measured on this host:
 
 ## 6. Release state
 
-Published to the **internal** (owner-only, login-gated) DEXCORE archive as
-`Mobile Harness (DCE)` — https://dcenhancements.com/_internal/archive/projects/MobileHarness/ — because
-the APK embeds third-party agent payloads and the upstream README asks for a redistribution review.
+Published to the **normal (public) DEXCORE archive** as `Mobile Harness (DCE)` —
+https://dcenhancements.com/archive/projects/apks/MobileHarness/ — by the owner's decision, which
+supersedes the earlier owner-only placement. The public lane is therefore the one that carries the
+injected archive update client; the earlier internal snapshots (`1.0.7-dce.1`, `1.0.7-dce.2`) remain
+as history in the internal archive and are no longer the delivery path.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.2).apk` | 106,672,054 | `947baa42…` | debug lab cert `ab327339…` |
-| release | `release/MobileHarness(1.0.7-dce.2).apk` | 89,223,496 | `15d41f30…` | debug lab cert `ab327339…` |
-
-The previous `1.0.7-dce.1` lanes stay published as history (the internal page keeps a snapshot
-history of two builds).
+| debug | `debug/MobileHarness(1.0.7-dce.4).apk` | 106,843,473 | see §6.1 | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.4).apk` | see §6.1 | see §6.1 | debug lab cert `ab327339…` |
 
 Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
 and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
-written into the canonical internal archive with the signed update descriptors
-(`update.json` at the root and per lane, ECDSA P-256) and mirrored into the served website tree.
-The served bytes were re-hashed in place and match the descriptor; nothing else in the internal
-archive was lost (both trees now hold 37,186 files and no symlinks).
+written into the canonical public archive with the signed update descriptors (`update.json` at the
+root and per lane, ECDSA P-256) and mirrored into the served website tree. Because the public archive
+is served without a login gate, the served bytes are verified **over HTTPS**: the versioned lanes,
+both `latest.apk` aliases and the root alias were downloaded again and hashed against the descriptor.
 
 The release lane is signed with the **Android debug lab certificate**, not a Play/production key:
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
+
+### 6.1 Measured release evidence (1.0.7-dce.4)
+
+Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
+after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
+local file listing.
+
+| Lane | Artifact | Bytes | SHA-256 | Signer (descriptor + APK) |
+| --- | --- | --- | --- | --- |
+| debug | `debug/MobileHarness(1.0.7-dce.4).apk` | 106,843,473 | `dc08e7541fa70e578a0d38ba938d456c653bd39c59a79de16d6258fa426571d8` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| release | `release/MobileHarness(1.0.7-dce.4).apk` | 89,352,184 | `8b85b557910bbdc9eb1309d9963f86187b3822e62c021be1ff2bcba2c45244c6` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+
+- Both lane descriptors (`debug/update.json`, `release/update.json`, ECDSA P-256) carry
+  `versionName 1.0.7-dce.4`, `versionCode 12`, `packageName com.jarves.mh` and the SHA-256 of the
+  bytes actually served; each one matches its lane, and the root `update.json` points at the release
+  bytes.
+- Aliases resolve to the same bytes: `debug/latest.apk` = debug, `release/latest.apk` = release,
+  root `latest.apk` = release, flat `MobileHarness.apk` = release. (The flat alias answered `404` for
+  about a minute while the mirror was still copying and returned the release bytes on re-fetch.)
+- The served release APK reports `package: com.jarves.mh versionCode=12 versionName=1.0.7-dce.4`.
+- The shipped DEX contains the injected update client (`dexcoreupdate`/`DceArchiveUpdates` symbols)
+  **and** this release's own attachment code (`AttachmentPreview`), so the published artifact is the
+  one built from this source, updater included.
+- The version page (`.../v/12/`) and the app page render the categorized changelog with translated
+  section labels (e.g. `Hinzugefügt`, `Añadido`, `Добавлено`); the signed descriptor carries
+  `notices` for all 21 languages.
+- JVM tests for this build: **157, 0 failures, 0 skipped** (145 before, 12 new in
+  `AttachmentPreviewTest`).
+
+### Honest limits of the earlier internal placement (still true)
+
+- The internal archive (`/_internal/**`) sits behind the login gate and returns
+  `302 → /_internal/auth/login` for every path before any file lookup, so those APK bytes were
+  verified on disk, not over HTTPS. That placement is history now.
 
 ### What had to be fixed to get there
 

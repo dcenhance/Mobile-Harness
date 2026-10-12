@@ -4634,6 +4634,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Workspace root of the active project, so the chat surface can show attachment thumbnails. */
+    fun attachmentRootPath(): String {
+        val project = _state.value.activeProject ?: return ""
+        return runCatching { projectWorkspaceRoot(project).absolutePath }.getOrDefault("")
+    }
+
     fun openChatAttachment(attachment: ChatAttachment) {
         val project = _state.value.activeProject ?: return
         runCatching {
