@@ -68,6 +68,9 @@ import com.jarves.mh.runtime.RuntimeSetupStatus
 import com.jarves.mh.runtime.readHeadBytes
 import com.jarves.mh.runtime.readTailText
 import com.jarves.mh.runtime.supportsArm64Runtime
+import com.jarves.mh.runtime.WorkspaceSearchMatch
+import com.jarves.mh.runtime.WorkspaceSearchResult
+import com.jarves.mh.runtime.WorkspaceTextSearch
 import com.jarves.mh.runtime.AndroidAppInstaller
 import com.jarves.mh.runtime.AndroidBuildPhase
 import com.jarves.mh.runtime.AndroidBuildRecord
@@ -112,6 +115,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -337,6 +341,11 @@ data class AppUiState(
     val currentTaskRequest: String? = null,
     val previewReady: Boolean = false,
     val previewUrl: String? = null,
+    // Project-wide text search (Files tab): the query, its result and whether a scan is running.
+    val workspaceSearchOpen: Boolean = false,
+    val workspaceSearchQuery: String = "",
+    val workspaceSearch: WorkspaceSearchResult = WorkspaceSearchResult.idle(),
+    val workspaceSearchRunning: Boolean = false,
     val isRunning: Boolean = false,
     val queuedFollowUps: List<QueuedFollowUp> = emptyList(),
     val activeSessionId: String? = null,
@@ -413,6 +422,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val vault = ApiKeyVault(application)
     private val preferences = AppPreferences(application)
+    /** Cancels the pending project scan when the query changes again. */
+    private var workspaceSearchJob: Job? = null
     private val claudeRuntime = ClaudeRuntimeBridge(application) { profile -> vault.get(profile.kind.name) }
     private val dshRuntime = DshRuntimeBridge(application) { profile -> vault.get(profile.kind.name) }
     private val installer = RuntimeInstaller(application)
@@ -4022,6 +4033,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadOpenedFile(project, entry.path)
     }
 
+    // ---- Project-wide text search (Files tab) ----
+
+    fun openWorkspaceSearch() = _state.update { it.copy(workspaceSearchOpen = true, workspaceSearchQuery = "") }
+
+    fun closeWorkspaceSearch() = _state.update {
+        it.copy(
+            workspaceSearchOpen = false,
+            workspaceSearchQuery = "",
+            workspaceSearch = WorkspaceSearchResult.idle(),
+            workspaceSearchRunning = false,
+        )
+    }
+
+    /**
+     * Stores the query and scans the project after a short pause. A new keystroke cancels the
+     * pending scan, so the result always belongs to the query on screen.
+     */
+    fun setWorkspaceSearchQuery(query: String) {
+        _state.update { it.copy(workspaceSearchQuery = query) }
+        workspaceSearchJob?.cancel()
+        val project = _state.value.activeProject ?: return
+        if (query.isBlank()) {
+            _state.update { it.copy(workspaceSearch = WorkspaceSearchResult.idle(), workspaceSearchRunning = false) }
+            return
+        }
+        workspaceSearchJob = viewModelScope.launch {
+            delay(WORKSPACE_SEARCH_DEBOUNCE_MILLIS)
+            _state.update { it.copy(workspaceSearchRunning = true) }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { WorkspaceTextSearch.search(projectWorkspaceRoot(project), query) }
+                    .getOrElse { WorkspaceSearchResult.idle(query.trim()) }
+            }
+            // Only publish when the query and the project are still the ones that ran.
+            if (_state.value.activeProject?.id == project.id && _state.value.workspaceSearchQuery == query) {
+                _state.update { it.copy(workspaceSearch = result, workspaceSearchRunning = false) }
+            }
+        }
+    }
+
+    /** Opens a hit in the file viewer at its line and column. */
+    fun openWorkspaceSearchMatch(match: WorkspaceSearchMatch) {
+        val project = _state.value.activeProject ?: return
+        _state.update { it.copy(openedFile = OpenedFileState(path = match.path, targetLine = match.line, targetColumn = match.column)) }
+        loadOpenedFile(project, match.path, match.line, match.column)
+    }
+
     private fun loadOpenedFile(project: Project, path: String, targetLine: Int? = null, targetColumn: Int? = null) {
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) {
@@ -5384,6 +5441,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private const val MEMORY_PRESSURE_LOGCAT_LINES = 500
         private const val MEMORY_PRESSURE_TEXT_CHARS = 64 * 1024
         const val LOGCAT_GRANT_COMMAND = "adb shell pm grant com.jarves.mh android.permission.READ_LOGS"
+        /** Pause before a project scan so typing does not start one per keystroke. */
+        private const val WORKSPACE_SEARCH_DEBOUNCE_MILLIS = 250L
         private const val MAX_ATTACHMENTS_PER_MESSAGE = 5
         private const val MAX_PROCESS_OUTPUT_BYTES = 512 * 1024
         private const val MAX_ATTACHMENT_BYTES = 25L * 1024L * 1024L

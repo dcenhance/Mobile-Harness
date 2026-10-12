@@ -129,6 +129,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Preview
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import com.jarves.mh.runtime.WorkspaceSearchMatch
+import com.jarves.mh.runtime.WorkspaceSearchResult
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
@@ -468,6 +470,10 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
             onCancelAndroidBuild = viewModel::cancelAndroidBuild,
             onCleanAndroid = viewModel::cleanAndroidProject,
             onInstallAndroidTools = { viewModel.installDevStack(DevStack.ANDROID) },
+            onOpenWorkspaceSearch = viewModel::openWorkspaceSearch,
+            onWorkspaceSearchQuery = viewModel::setWorkspaceSearchQuery,
+            onCloseWorkspaceSearch = viewModel::closeWorkspaceSearch,
+            onOpenWorkspaceSearchMatch = viewModel::openWorkspaceSearchMatch,
         )
         else -> RootScreenHost(state, viewModel, projectsListState)
     }
@@ -4403,6 +4409,10 @@ private fun WorkspaceScreen(
     onCancelAndroidBuild: () -> Unit,
     onCleanAndroid: () -> Unit,
     onInstallAndroidTools: () -> Unit,
+    onOpenWorkspaceSearch: () -> Unit,
+    onWorkspaceSearchQuery: (String) -> Unit,
+    onCloseWorkspaceSearch: () -> Unit,
+    onOpenWorkspaceSearchMatch: (WorkspaceSearchMatch) -> Unit,
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
@@ -4553,6 +4563,19 @@ private fun WorkspaceScreen(
         return
     }
 
+    // Project-wide search sits above the workspace, like the file viewer.
+    if (state.workspaceSearchOpen) {
+        FindInFilesScreen(
+            query = state.workspaceSearchQuery,
+            result = state.workspaceSearch,
+            running = state.workspaceSearchRunning,
+            onQueryChange = onWorkspaceSearchQuery,
+            onOpenMatch = onOpenWorkspaceSearchMatch,
+            onClose = onCloseWorkspaceSearch,
+        )
+        return
+    }
+
     // If a file is open, show the FileViewerScreen on top
     if (state.openedFile != null) {
         FileViewerScreen(
@@ -4651,6 +4674,11 @@ private fun WorkspaceScreen(
                         }
                     }
                     IconButton(onClick = { showChats = true }) { Icon(Icons.Default.History, stringResource(R.string.ws_project_chats)) }
+                    if (selectedTab == WorkspaceTab.FILES) {
+                        IconButton(onClick = onOpenWorkspaceSearch) {
+                            Icon(Icons.Default.Search, stringResource(R.string.search_in_files))
+                        }
+                    }
                     if (selectedTab == WorkspaceTab.CHAT) {
                         IconButton(
                             onClick = {
@@ -7206,6 +7234,134 @@ private fun ChatFindBar(
             }
             IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Default.Close, stringResource(R.string.chat_find_close), Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FindInFilesScreen(
+    query: String,
+    result: WorkspaceSearchResult,
+    running: Boolean,
+    onQueryChange: (String) -> Unit,
+    onOpenMatch: (WorkspaceSearchMatch) -> Unit,
+    onClose: () -> Unit,
+) {
+    BackHandler(onBack = onClose)
+    // One honest status line: what was found, how much was read, and what a ceiling cut short.
+    val status = when {
+        query.isBlank() -> stringResource(R.string.search_hint)
+        running -> stringResource(R.string.search_running)
+        else -> buildList {
+            if (result.matches.isEmpty()) {
+                add(stringResource(R.string.search_no_matches))
+            } else {
+                add(stringResource(R.string.search_match_count, result.matches.size, result.matchingFiles))
+            }
+            add(stringResource(R.string.search_scanned, result.scannedFiles, result.candidateFiles))
+            if (result.truncated) add(stringResource(R.string.search_truncated))
+            if (result.heldBackDirectories.isNotEmpty()) {
+                add(stringResource(R.string.search_held_back, result.heldBackDirectories.size))
+            }
+        }.joinToString(" · ")
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.search_in_files), fontWeight = FontWeight.SemiBold)
+                        Text(
+                            status,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.search_close))
+                    }
+                },
+                actions = {
+                    if (running) CircularProgressIndicator(Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            )
+        },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.search_project_placeholder)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(Icons.Default.Close, stringResource(R.string.search_clear))
+                        }
+                    }
+                },
+            )
+            when {
+                query.isBlank() -> EmptyState(
+                    Icons.Default.Search,
+                    stringResource(R.string.search_in_files),
+                    stringResource(R.string.search_hint),
+                )
+                result.matches.isEmpty() && !running -> EmptyState(
+                    Icons.Default.Search,
+                    stringResource(R.string.search_no_matches),
+                    status,
+                )
+                else -> LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    itemsIndexed(result.matches) { index, match ->
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenMatch(match) }
+                                .padding(vertical = 8.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = match.path,
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = PocketOrange,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = stringResource(R.string.search_line_column, match.line, match.column),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(
+                                text = match.preview,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (index != result.matches.lastIndex) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        }
+                    }
+                }
             }
         }
     }

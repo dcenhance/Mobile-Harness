@@ -69,8 +69,30 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
   editable draft; quoting never dispatches a request.
 - Per-message menu: copy message (clipboard + confirmation) and quote in reply.
 
-### 3.4 Build fix
+### 3.4 Project-wide text search (1.0.7-dce.2)
 
+- `runtime/WorkspaceTextSearch.kt` — literal, case-insensitive search over the saved project text:
+  every match with file, 1-based line and column plus a bounded preview, and one reconcilable set of
+  counters (`candidateFiles = scanned + binary + oversized + unreadable`), the held-back directories
+  by name, a `truncated` flag when a ceiling stopped the scan, and a `fileSetId` (first 8 hex of
+  sha256 over the sorted candidate paths) so two searches can be told apart as *different file sets*
+  instead of "different result counts".
+- Visibility follows the file browser: no symlinks, nothing outside the project root, no `.claude*`
+  runtime metadata; generated/private trees (`.git`, `.gradle`, `.kotlin`, `.idea`, `.cxx`,
+  `.externalNativeBuild`, `build`, `node_modules`) are never entered and are reported as skipped.
+  Binary is decided by extension or by a NUL byte in the read head — a listing classifies no content,
+  only a search does.
+- `text/LiteralMatch.kt` is now the single literal matcher behind both the conversation find and this
+  search.
+- UI: `Find in files` from the Files tab (`FindInFilesScreen`), with the honest status line
+  ("N matches in M files · scanned X of Y files · result capped · N folders skipped"); tapping a hit
+  opens it in the file viewer at that line and column.
+- Tests: `app/src/test/java/com/jarves/mh/runtime/WorkspaceTextSearchTest.kt` — 16 cases over a real
+  temporary tree (columns, case folding, literal metacharacters, binary by name and by content,
+  held-back directories, runtime metadata, a symlink pointing outside the root, size and match and
+  file ceilings, id stability, blank query, missing root, preview bounds, reconciling counters).
+
+### 3.5 Build fix
 - `app/src/main/cpp/CMakeLists.txt`: the `SHELL:-include ${SHM_ROOT}/shm.h` option is now quoted.
   Unquoted, the shell splits a project path containing a space and the native build dies with
   `clang: error: no such file or directory: 'Projects/MobileHarness/...'`.

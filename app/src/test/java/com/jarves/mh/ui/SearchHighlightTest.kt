@@ -3,7 +3,7 @@ package com.jarves.mh.ui
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.graphics.Color
-import com.jarves.mh.ui.chat.literalMatchRanges
+import com.jarves.mh.text.literalMatchRanges
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

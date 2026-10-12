@@ -2,7 +2,7 @@ package com.jarves.mh.ui
 
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import com.jarves.mh.ui.chat.literalMatchRanges
+import com.jarves.mh.text.literalMatchRanges
 
 /**
  * Marks every literal occurrence of [query] inside the *rendered* text of this value.
