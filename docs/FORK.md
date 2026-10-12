@@ -36,6 +36,7 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
 | Project-wide text search (`total / listed / held back`, stable file-set id) | `grep -rnE 'readLines\|lineSequence\|useLines'` shows only installer/gradle property parsing, no content search | **implemented here** (§3.4) |
 | The attached picture is visible before sending | attachment chips showed a name and size only; `grep -rn 'BitmapFactory\|ImageBitmap\|asImageBitmap\|inSampleSize'` → 0 | **implemented here** (§3.6) |
 | Screen capture and image frames handed to the model (`see_screen`, vision parts) | `grep -rn 'MediaProjection\|createScreenCaptureIntent\|input_image\|image_url'` → 0 | **implemented here** (§3.7), via the workspace: the frame becomes an attachment the agent can read |
+| Native readiness measured instead of assumed (page size, real ELF alignment) | DcentIDE reads `Os.sysconf(_SC_PAGESIZE)`; here `16384`/`getPageSize`/`_SC_PAGESIZE` → 0 hits while `RuntimeCompatibility` only checked the ABI | **implemented here** (§3.8) |
 | Device actions available to the agent (list/install/uninstall/launch apps) | `getLaunchIntentForPackage` exists once, in the app's own install flow (`runtime/AndroidAppInstaller.kt`); no inventory query (`queryIntentActivities`/`getInstalledPackages` → 0) | open, see §4 |
 | Interactive approvals outside Claude Code | `DshRuntimeBridge.respondToApproval` and `AntigravityRuntimeBridge.respondToApproval` are deliberate no-ops | upstream product decision, not a defect |
 | Remote/LAN build server, project catalog (DCIX equivalent), device-folder import, battery-handoff receipts | no corresponding source | out of scope for this fork |
@@ -147,6 +148,33 @@ them. Mobile Harness had no way to capture at all (`MediaProjection`/`createScre
 - 9 JVM tests cover naming, same-second dedupe, recognised frame names, the attachment path, the
   refusal of any chat/file name that is not one plain segment, and the plausibility bounds.
 
+### 3.8 Native readiness is measured, not assumed (1.0.7-dce.6)
+
+DcentIDE's device work carries a hard-won rule — read the page size the kernel reports and check the
+real native files instead of trusting a 4 KiB default or a successful build. This fork had the same
+blind spot: `runtime/RuntimeCompatibility.kt` knew only `supportsArm64Runtime(abis, osArch)`, and
+nothing in the app ever looked at the page size (`16384`, `getPageSize`, `_SC_PAGESIZE` → 0 hits),
+although the project's own NDK comment warns that a wrong page size makes the native runtime crash.
+
+- `runtime/NativeLoadAlignment.kt` — reads what the loader reads: the ELF header, then the LOAD program
+  headers in one bounded window (max 128 entries, max 16 KiB table, never the file body). Per file it
+  reports the minimum segment alignment and whether every segment satisfies the kernel's rule
+  `(vaddr - offset) % align == 0`, and turns that into one verdict per refusing rule: `READY`,
+  `BELOW_DEVICE_PAGE`, `PAGE_SIZE_UNKNOWN`, `MISALIGNED_SEGMENT`, `NOT_ELF`, `UNREADABLE`. An
+  unknowable page size never becomes a pass for a 4 KiB-aligned file.
+- `runtime/NativeReadiness.kt` — the Android half: the page size the kernel actually reports
+  (`Os.sysconf`, 0 when unknown), the libraries in `nativeLibraryDir`, and a bounded, deterministic
+  sample of 24 extracted runtime binaries, so the check costs the same on a large rootfs.
+- UI: both device surfaces (the setup prompt's spec list and the setup wizard's device step) gained two
+  rows — the reported page size and the native-file count (`n files ready to load`, or
+  `k of n not aligned for this page size`). The check runs off the composable thread and shows
+  "Checking…" until it has a real result, so nothing claims readiness before measuring it.
+- 16 JVM tests, of which the alignment cases run against **real ELF files**: two shared objects built
+  with this project's own NDK clang, one linked with `-Wl,-z,max-page-size=4096` and one with `16384`.
+  The rest cover a truncated program-header table, a forged header count, a big-endian ELF, a segment
+  whose address disagrees with its offset, an ELF without LOAD segments, an empty file, a text file and
+  a 64 MiB sparse file that must be inspected from its headers alone.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive
@@ -193,8 +221,8 @@ as history in the internal archive and are no longer the delivery path.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.5).apk` | 106,898,481 | see §6.1 | debug lab cert `ab327339…` |
-| release | `release/MobileHarness(1.0.7-dce.5).apk` | 89,392,744 | see §6.1 | debug lab cert `ab327339…` |
+| debug | `debug/MobileHarness(1.0.7-dce.6).apk` | 106,932,829 | see §6.1 | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.6).apk` | 89,422,108 | see §6.1 | debug lab cert `ab327339…` |
 
 Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
 and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
@@ -207,7 +235,7 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.5)
+### 6.1 Measured release evidence (1.0.7-dce.6)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
@@ -215,26 +243,26 @@ local file listing.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer (descriptor + APK) |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.5).apk` | 106,898,481 | `ab566cd87d3b941b7de532c7bdfe573cf6fe2377f7b406750f768d028bee8cb8` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
-| release | `release/MobileHarness(1.0.7-dce.5).apk` | 89,392,744 | `6fcb3c9091fc9bc2bd95579888d8933de8df44c99e7ba55e5bfbaf06e26d21d2` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| debug | `debug/MobileHarness(1.0.7-dce.6).apk` | 106,932,829 | `3aae64d76d042a0c58db530a3116e59ed6df09baa4b65952da61effb23e9e6dd` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| release | `release/MobileHarness(1.0.7-dce.6).apk` | 89,422,108 | `440da9fe3823564de2ebeaec420d97de88fea00b29ab4ed1db93ca59448ed51a` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
 
 - Both lane descriptors (`debug/update.json`, `release/update.json`, ECDSA P-256) carry
-  `versionName 1.0.7-dce.5`, `versionCode 13`, `packageName com.jarves.mh` and the SHA-256 of the
-  bytes actually served; each one matches its lane, and the root `update.json` points at the release
-  bytes. Each descriptor carries `notices` for all 21 languages.
-- Aliases resolve to the same bytes: `debug/latest.apk` = debug, `release/latest.apk` = release,
-  root `latest.apk` = release, flat `MobileHarness.apk` = release. (The flat alias answered `404` for
-  about a minute while the mirror was still copying and returned the release bytes on re-fetch.)
-- The served release APK reports `package: com.jarves.mh versionCode=13 versionName=1.0.7-dce.5`.
-- The **published** debug APK's compiled manifest carries
-  `android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION` and `com.jarves.mh.runtime.ScreenCaptureService`
-  with `foregroundServiceType=0x20` (mediaProjection), read with
-  `aapt2 dump xmltree --file AndroidManifest.xml`; its DEX contains `ScreenCaptureService`,
-  `ScreenFrameFiles` and `ScreenCaptureResult`, plus the injected `dexcoreupdate` client.
-- The version page (`.../v/13/`) and the app page render the categorized changelog with translated
+  `versionName 1.0.7-dce.6`, `versionCode 14`, `packageName com.jarves.mh` and the SHA-256 of the
+  bytes actually served; each one matches its lane, the root `update.json` points at the release bytes,
+  and every descriptor carries `notices` for all 21 languages.
+- Aliases resolve to the same bytes: `debug/latest.apk` = debug, `release/latest.apk` = release, root
+  `latest.apk` = release, flat `MobileHarness.apk` = release (again `404` for about a minute while the
+  mirror was copying, then the release bytes on re-fetch).
+- The served release APK reports `package: com.jarves.mh versionCode=14 versionName=1.0.7-dce.6`, and
+  its DEX contains `NativeLoadAlignment` / `NativeReadiness` next to the earlier features
+  (`ScreenCaptureService`) and the injected `dexcoreupdate` client.
+- The published debug APK's own seven `lib/arm64-v8a/*.so` files all use a **16 KiB LOAD alignment**
+  (`0x4000`) with congruent segments, checked with GNU `readelf -lW` and with an independent second
+  implementation of the same rule — so the new check reports "ready" for them on a 16 KiB device.
+- The version page (`.../v/14/`) and the app page render the categorized changelog with translated
   section labels (`Hinzugefügt`, `Añadido`, `Добавлено`, `जोड़ा`, `أُضيف`).
-- JVM tests for this build: **166, 0 failures, 0 skipped** (157 before, 9 new in
-  `ScreenFrameFilesTest`).
+- JVM tests for this build: **182, 0 failures, 0 skipped** (166 before, 16 new in
+  `NativeLoadAlignmentTest`).
 
 ### Honest limits of the earlier internal placement (still true)
 

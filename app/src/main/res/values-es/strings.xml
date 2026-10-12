@@ -143,6 +143,14 @@
     <string name="runtime_setup_memory_ram">Memoria (RAM)</string>
     <string name="runtime_setup_ram_usable">%1$s GB disponibles</string>
     <string name="runtime_setup_processor">Procesador</string>
+    <string name="runtime_setup_checking">Comprobando…</string>
+    <string name="runtime_setup_page_size">Tamaño de página</string>
+    <string name="runtime_setup_page_size_value">%1$d KB, según el kernel</string>
+    <string name="runtime_setup_page_size_unknown">Esta versión de Android no lo informa</string>
+    <string name="runtime_setup_native_files">Archivos nativos</string>
+    <string name="runtime_setup_native_none">Aún no hay nada que comprobar</string>
+    <string name="runtime_setup_native_ready">%1$d archivos listos para cargar</string>
+    <string name="runtime_setup_native_partial">%1$d de %2$d sin alineación para este tamaño de página</string>
     <string name="runtime_setup_download_req">Descarga necesaria</string>
     <string name="runtime_setup_download_range">149–774 MB</string>
     <string name="runtime_setup_download_based_on_tools">Según las herramientas que elijas</string>

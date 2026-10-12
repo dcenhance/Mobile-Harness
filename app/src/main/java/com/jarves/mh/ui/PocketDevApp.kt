@@ -181,6 +181,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -288,6 +290,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.CompositionLocalProvider
 import com.jarves.mh.R
+import com.jarves.mh.runtime.NativeLoadAlignment
+import com.jarves.mh.runtime.NativeReadiness
 import com.jarves.mh.ui.attach.AttachmentPreview
 import com.jarves.mh.ui.attach.rememberAttachmentThumbnail
 import com.jarves.mh.ui.theme.AppLanguage
@@ -1322,6 +1326,28 @@ private fun RuntimeSetupPromptScreen(
                             label = stringResource(R.string.runtime_setup_download_req),
                             value = stringResource(R.string.runtime_setup_download_range),
                             statusOk = true,
+                        )
+                        val native = rememberNativeReadiness(context)
+                        SpecRow(
+                            icon = Icons.Default.Speed,
+                            label = stringResource(R.string.runtime_setup_page_size),
+                            value = when {
+                                native == null -> stringResource(R.string.runtime_setup_checking)
+                                !native.pageSizeKnown -> stringResource(R.string.runtime_setup_page_size_unknown)
+                                else -> stringResource(R.string.runtime_setup_page_size_value, native.pageSizeBytes / 1024)
+                            },
+                            statusOk = native?.pageSizeKnown == true,
+                        )
+                        SpecRow(
+                            icon = Icons.Default.Build,
+                            label = stringResource(R.string.runtime_setup_native_files),
+                            value = when {
+                                native == null -> stringResource(R.string.runtime_setup_checking)
+                                native.scanned == 0 -> stringResource(R.string.runtime_setup_native_none)
+                                native.allReady -> stringResource(R.string.runtime_setup_native_ready, native.scanned)
+                                else -> stringResource(R.string.runtime_setup_native_partial, native.scanned - native.ready, native.scanned)
+                            },
+                            statusOk = native?.allReady == true,
                         )
                         Text(
                             stringResource(R.string.runtime_setup_download_based_on_tools),
@@ -2899,6 +2925,28 @@ private fun DeviceCheckStep(context: Context, onContinue: () -> Unit) {
         CheckRow(Icons.Default.Memory, stringResource(R.string.provider_memory), stringResource(R.string.provider_memory_mode, totalRamLabel, stringResource(if (totalRamGb >= 7.5) R.string.provider_full_mode else R.string.provider_lite_mode)), true)
         CheckRow(Icons.Default.Code, stringResource(R.string.runtime_setup_processor), Build.SUPPORTED_ABIS.firstOrNull() ?: stringResource(R.string.provider_unknown), arm64)
         CheckRow(Icons.Default.Storage, "Android", stringResource(R.string.provider_android_version, Build.VERSION.RELEASE), true)
+        val native = rememberNativeReadiness(context)
+        CheckRow(
+            Icons.Default.Speed,
+            stringResource(R.string.runtime_setup_page_size),
+            when {
+                native == null -> stringResource(R.string.runtime_setup_checking)
+                !native.pageSizeKnown -> stringResource(R.string.runtime_setup_page_size_unknown)
+                else -> stringResource(R.string.runtime_setup_page_size_value, native.pageSizeBytes / 1024)
+            },
+            native?.pageSizeKnown == true,
+        )
+        CheckRow(
+            Icons.Default.Build,
+            stringResource(R.string.runtime_setup_native_files),
+            when {
+                native == null -> stringResource(R.string.runtime_setup_checking)
+                native.scanned == 0 -> stringResource(R.string.runtime_setup_native_none)
+                native.allReady -> stringResource(R.string.runtime_setup_native_ready, native.scanned)
+                else -> stringResource(R.string.runtime_setup_native_partial, native.scanned - native.ready, native.scanned)
+            },
+            native?.allReady == true,
+        )
         Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
             Text(
                 stringResource(R.string.provider_security_warning),
@@ -2910,6 +2958,20 @@ private fun DeviceCheckStep(context: Context, onContinue: () -> Unit) {
             Text(stringResource(if (compatible) R.string.provider_continue else R.string.runtime_setup_device_not_supported))
         }
     }
+}
+
+/**
+ * Page size and native-file readiness for this device, measured in the background: the check reads the
+ * ELF headers of the files this app would load, so it must not run on the composable thread. Null means
+ * "still checking", never "ready".
+ */
+@Composable
+private fun rememberNativeReadiness(context: Context): NativeLoadAlignment.Summary? {
+    var summary by remember { mutableStateOf<NativeLoadAlignment.Summary?>(null) }
+    LaunchedEffect(context) {
+        summary = withContext(Dispatchers.IO) { NativeReadiness.summarize(context) }
+    }
+    return summary
 }
 
 @Composable

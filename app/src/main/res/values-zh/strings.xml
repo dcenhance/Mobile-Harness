@@ -143,6 +143,14 @@
     <string name="runtime_setup_memory_ram">内存 (RAM)</string>
     <string name="runtime_setup_ram_usable">%1$s GB 可用</string>
     <string name="runtime_setup_processor">处理器</string>
+    <string name="runtime_setup_checking">正在检查…</string>
+    <string name="runtime_setup_page_size">页面大小</string>
+    <string name="runtime_setup_page_size_value">%1$d KB，由内核报告</string>
+    <string name="runtime_setup_page_size_unknown">此 Android 版本未提供</string>
+    <string name="runtime_setup_native_files">本机文件</string>
+    <string name="runtime_setup_native_none">暂无可检查内容</string>
+    <string name="runtime_setup_native_ready">%1$d 个文件可加载</string>
+    <string name="runtime_setup_native_partial">%2$d 个中有 %1$d 个未按此页面大小对齐</string>
     <string name="runtime_setup_download_req">所需下载</string>
     <string name="runtime_setup_download_range">149–774 MB</string>
     <string name="runtime_setup_download_based_on_tools">根据您选择的工具而定</string>
