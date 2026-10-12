@@ -37,9 +37,15 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
 | The attached picture is visible before sending | attachment chips showed a name and size only; `grep -rn 'BitmapFactory\|ImageBitmap\|asImageBitmap\|inSampleSize'` → 0 | **implemented here** (§3.6) |
 | Screen capture and image frames handed to the model (`see_screen`, vision parts) | `grep -rn 'MediaProjection\|createScreenCaptureIntent\|input_image\|image_url'` → 0 | **implemented here** (§3.7), via the workspace: the frame becomes an attachment the agent can read |
 | Native readiness measured instead of assumed (page size, real ELF alignment) | DcentIDE reads `Os.sysconf(_SC_PAGESIZE)`; here `16384`/`getPageSize`/`_SC_PAGESIZE` → 0 hits while `RuntimeCompatibility` only checked the ABI | **implemented here** (§3.8) |
-| Device actions available to the agent (list/install/uninstall/launch apps) | `getLaunchIntentForPackage` exists once, in the app's own install flow (`runtime/AndroidAppInstaller.kt`); no inventory query (`queryIntentActivities`/`getInstalledPackages` → 0) | open, see §4 |
+| Device actions available to the agent (list/install/uninstall/launch apps) | `getLaunchIntentForPackage` exists once, in the app's own install flow (`runtime/AndroidAppInstaller.kt`); no inventory query (`queryIntentActivities`/`getInstalledPackages`/`getInstalledApplications` → 0, no `<queries>` block) | **open** — needs a tool bridge for the PRoot CLIs (loopback endpoint + shell wrapper in the runtime PATH), read-only first |
+| Project rules the agent always follows (managed instruction file) | `CLAUDE.md`/`AGENTS.md` → 0 hits; the installer writes only `.claude/settings.json`, so every conversation starts without project guidance | **open**, small |
+| What a run costs / how full the context is | no agent usage parsing (`total_cost`, `input_tokens`, `cache_read`, `num_turns` → 0 outside the local API gateway), no session usage state | **open** |
+| Native agent session continuation | both bridges re-send the transcript into the prompt (`ClaudeRuntimeBridge.buildContextPrompt`, `DshRuntimeBridge.buildContextPrompt`); `--resume`/`session_id` → 0 hits, so an app restart cannot pick up an existing agent session | **open** — per-CLI knowledge required |
+| Import a project folder from the phone (SAF tree) | `ACTION_OPEN_DOCUMENT_TREE`/`OpenDocumentTree` → 0; only ZIP import exists (`importZipLauncher`) | **open**, small |
+| Editor comfort: syntax highlighting, word wrap | `keywords`/`tokenize`/`wordWrap` → 0 in the file editor (chat code blocks are highlighted by `ui/MarkdownText.kt`) | **open**, medium |
+| Project backup/restore and chat export | `backupProject`/`restoreProject`/`exportChat` → 0; agent edits are covered by `WorkspaceCheckpoints` (94 refs) and a project ZIP export exists | **open**, small |
 | Interactive approvals outside Claude Code | `DshRuntimeBridge.respondToApproval` and `AntigravityRuntimeBridge.respondToApproval` are deliberate no-ops | upstream product decision, not a defect |
-| Remote/LAN build server, project catalog (DCIX equivalent), device-folder import, battery-handoff receipts | no corresponding source | out of scope for this fork |
+| Remote/LAN build server, project catalog (DCIX equivalent), battery-handoff receipts | no corresponding source | out of scope for this fork |
 
 ## 3. What this fork adds
 
