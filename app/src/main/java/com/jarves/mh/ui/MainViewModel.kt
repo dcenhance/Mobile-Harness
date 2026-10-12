@@ -3,6 +3,7 @@ package com.jarves.mh.ui
 import android.app.Application
 import android.app.ActivityManager
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.Context
 import android.content.pm.PackageManager
@@ -60,6 +61,9 @@ import com.jarves.mh.runtime.AntigravityAuthStatus
 import com.jarves.mh.runtime.AntigravityRuntimeBridge
 import com.jarves.mh.runtime.NativeSpawnProcess
 import com.jarves.mh.runtime.RuntimeInstallProgress
+import com.jarves.mh.runtime.ScreenCaptureResult
+import com.jarves.mh.runtime.ScreenCaptureService
+import com.jarves.mh.runtime.ScreenFrameFiles
 import com.jarves.mh.runtime.RuntimeInstaller
 import com.jarves.mh.runtime.RuntimeSetupController
 import com.jarves.mh.runtime.RuntimeSetupService
@@ -4632,6 +4636,104 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val file = File(root, attachment.relativePath).canonicalFile
             if (file.toPath().startsWith(root.canonicalFile.toPath())) file.delete()
         }
+    }
+
+    init {
+        viewModelScope.launch {
+            ScreenCaptureResult.outcomes.collect { outcome ->
+                when (outcome) {
+                    is ScreenCaptureResult.Outcome.Captured -> {
+                        val frame = outcome.frame
+                        val attachment = ChatAttachment(
+                            displayName = frame.fileName,
+                            relativePath = frame.relativePath,
+                            mimeType = "image/png",
+                            sizeBytes = frame.bytes,
+                        )
+                        val room = MAX_ATTACHMENTS_PER_MESSAGE - _state.value.pendingAttachments.size
+                        if (room <= 0) {
+                            _state.update { it.copy(toastMessage = str(R.string.vm_max_attachments, MAX_ATTACHMENTS_PER_MESSAGE)) }
+                        } else {
+                            _state.update {
+                                it.copy(
+                                    pendingAttachments = it.pendingAttachments + attachment,
+                                    toastMessage = str(R.string.chat_screenshot_attached),
+                                )
+                            }
+                            refreshProjectFiles()
+                        }
+                    }
+
+                    is ScreenCaptureResult.Outcome.Refused -> {
+                        val message = when (outcome.refusal) {
+                            ScreenFrameFiles.Refusal.DENIED -> str(R.string.chat_screenshot_denied)
+                            ScreenFrameFiles.Refusal.UNSUPPORTED -> str(R.string.chat_screenshot_unsupported)
+                            ScreenFrameFiles.Refusal.NO_TARGET -> str(R.string.chat_screenshot_no_target)
+                            ScreenFrameFiles.Refusal.NO_FRAME -> str(R.string.chat_screenshot_no_frame)
+                            ScreenFrameFiles.Refusal.WRITE_FAILED -> str(R.string.chat_screenshot_write_failed)
+                            ScreenFrameFiles.Refusal.IMPLAUSIBLE_FRAME -> str(R.string.chat_screenshot_incomplete)
+                        }
+                        _state.update { it.copy(toastMessage = message) }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Result of the system screen-cast dialog. A granted token starts the capture; a dismissed one is
+     * reported as denied instead of silently doing nothing.
+     */
+    fun handleScreenCaptureResult(resultCode: Int, data: Intent?) {
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            _state.update { it.copy(toastMessage = str(R.string.chat_screenshot_denied)) }
+            return
+        }
+        startScreenCapture(resultCode, data)
+    }
+
+    /**
+     * Captures one screen frame with the token the system screen-cast dialog returned and files it as
+     * an attachment of the open chat. The frame is written by [ScreenCaptureService] on a worker
+     * thread and reported back through [ScreenCaptureResult], so the chat surface never waits for it.
+     */
+    private fun startScreenCapture(resultCode: Int, resultData: Intent) {
+        val current = _state.value
+        val project = current.activeProject
+        val chatId = current.activeChatId
+        val prepared = if (project == null || chatId.isNullOrBlank()) {
+            null
+        } else {
+            runCatching {
+                val root = projectWorkspaceRoot(project)
+                val folder = File(root, "${ScreenFrameFiles.ATTACHMENT_FOLDER}/$chatId").apply { mkdirs() }.canonicalFile
+                require(folder.toPath().startsWith(root.canonicalFile.toPath()))
+                val taken = folder.listFiles()?.map { it.name }?.toSet().orEmpty()
+                val name = ScreenFrameFiles.frameFileName(System.currentTimeMillis(), taken)
+                val relative = ScreenFrameFiles.relativeAttachmentPath(chatId, name) ?: error("unusable frame name")
+                name to relative
+            }.getOrNull()
+        }
+        if (project == null || prepared == null) {
+            _state.update { it.copy(toastMessage = str(R.string.chat_screenshot_no_target)) }
+            return
+        }
+        val (name, relativePath) = prepared
+        val target = File(projectWorkspaceRoot(project), relativePath)
+        val started = runCatching {
+            ContextCompat.startForegroundService(
+                getApplication(),
+                ScreenCaptureService.intent(
+                    context = getApplication(),
+                    resultCode = resultCode,
+                    resultData = resultData,
+                    targetPath = target.absolutePath,
+                    relativePath = relativePath,
+                    fileName = name,
+                ),
+            )
+        }.isSuccess
+        if (!started) _state.update { it.copy(toastMessage = str(R.string.chat_screenshot_unsupported)) }
     }
 
     /** Workspace root of the active project, so the chat surface can show attachment thumbnails. */

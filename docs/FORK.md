@@ -35,7 +35,7 @@ Evidence is source-level: the greps below return nothing in `app/src/main/java/c
 | Per-message actions: copy, quote into the composer | chat messages had no per-message menu; text selection was the only way to take text along | **implemented here** |
 | Project-wide text search (`total / listed / held back`, stable file-set id) | `grep -rnE 'readLines\|lineSequence\|useLines'` shows only installer/gradle property parsing, no content search | **implemented here** (§3.4) |
 | The attached picture is visible before sending | attachment chips showed a name and size only; `grep -rn 'BitmapFactory\|ImageBitmap\|asImageBitmap\|inSampleSize'` → 0 | **implemented here** (§3.6) |
-| Screen capture and image frames handed to the model (`see_screen`, vision parts) | `grep -rn 'MediaProjection\|createScreenCaptureIntent\|input_image\|image_url'` → 0 | open, see §4 |
+| Screen capture and image frames handed to the model (`see_screen`, vision parts) | `grep -rn 'MediaProjection\|createScreenCaptureIntent\|input_image\|image_url'` → 0 | **implemented here** (§3.7), via the workspace: the frame becomes an attachment the agent can read |
 | Device actions available to the agent (list/install/uninstall/launch apps) | `getLaunchIntentForPackage` exists once, in the app's own install flow (`runtime/AndroidAppInstaller.kt`); no inventory query (`queryIntentActivities`/`getInstalledPackages` → 0) | open, see §4 |
 | Interactive approvals outside Claude Code | `DshRuntimeBridge.respondToApproval` and `AntigravityRuntimeBridge.respondToApproval` are deliberate no-ops | upstream product decision, not a defect |
 | Remote/LAN build server, project catalog (DCIX equivalent), device-folder import, battery-handoff receipts | no corresponding source | out of scope for this fork |
@@ -121,6 +121,32 @@ which orientation, was on its way to the agent.
 - 12 JVM tests cover the type decisions, the refusal reasons, the downscale ladder (portrait and
   landscape, exact multiples, unknown dimensions, non-positive maximum) and the cache key.
 
+### 3.7 Screen capture from the chat menu (1.0.7-dce.5)
+
+DcentIDE's device surface has `see_screen`: a foreground service of type `mediaProjection`, started
+only after the system screen-cast consent, writing frames into app storage so a model can look at
+them. Mobile Harness had no way to capture at all (`MediaProjection`/`createScreenCaptureIntent`/`screenshot`
+→ 0 files). This release ports the same idea in the shape this app already uses for pictures:
+
+- `runtime/ScreenFrameFiles.kt` — pure rules: the frame name (`screenshot-yyyyMMdd-HHmmss.png`, with
+  `-2`, `-3` … so two captures in the same second do not overwrite each other), the
+  workspace-relative attachment path with both segments reduced to one plain component, and the
+  plausibility test a written frame must pass (non-empty, within 24 MB, real PNG signature).
+- `runtime/ScreenCaptureService.kt` — a foreground service declared with
+  `foregroundServiceType="mediaProjection"`, one frame per invocation: consent token → projection →
+  `ImageReader` → PNG written into the open chat's attachment folder → header re-read → projection and
+  display released → service stops. A 12 s timeout reports `NO_FRAME` (a screen that is off yields no
+  fresh content) instead of hanging, and every failure path publishes its own reason.
+- `runtime/ScreenCaptureResult.kt` — the outcome travels back to the chat surface inside the process,
+  so a frame becomes a normal `ChatAttachment` (thumbnail, removal, agent reference) with no separate
+  delivery path.
+- UI: the composer's attach menu gains **Screenshot** next to Take photo; the screen-cast consent stays
+  the system dialog's decision, and a dismissed or unsupported one is reported.
+- Manifest: `FOREGROUND_SERVICE_MEDIA_PROJECTION` plus the service; the compiled manifest of the built
+  lane was checked with `aapt2 dump xmltree` (`foregroundServiceType=0x20`).
+- 9 JVM tests cover naming, same-second dedupe, recognised frame names, the attachment path, the
+  refusal of any chat/file name that is not one plain segment, and the plausibility bounds.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive
@@ -167,8 +193,8 @@ as history in the internal archive and are no longer the delivery path.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.4).apk` | 106,843,473 | see §6.1 | debug lab cert `ab327339…` |
-| release | `release/MobileHarness(1.0.7-dce.4).apk` | see §6.1 | see §6.1 | debug lab cert `ab327339…` |
+| debug | `debug/MobileHarness(1.0.7-dce.5).apk` | 106,898,481 | see §6.1 | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.5).apk` | 89,392,744 | see §6.1 | debug lab cert `ab327339…` |
 
 Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
 and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
@@ -181,7 +207,7 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.4)
+### 6.1 Measured release evidence (1.0.7-dce.5)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
@@ -189,25 +215,26 @@ local file listing.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer (descriptor + APK) |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.4).apk` | 106,843,473 | `dc08e7541fa70e578a0d38ba938d456c653bd39c59a79de16d6258fa426571d8` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
-| release | `release/MobileHarness(1.0.7-dce.4).apk` | 89,352,184 | `8b85b557910bbdc9eb1309d9963f86187b3822e62c021be1ff2bcba2c45244c6` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| debug | `debug/MobileHarness(1.0.7-dce.5).apk` | 106,898,481 | `ab566cd87d3b941b7de532c7bdfe573cf6fe2377f7b406750f768d028bee8cb8` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| release | `release/MobileHarness(1.0.7-dce.5).apk` | 89,392,744 | `6fcb3c9091fc9bc2bd95579888d8933de8df44c99e7ba55e5bfbaf06e26d21d2` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
 
 - Both lane descriptors (`debug/update.json`, `release/update.json`, ECDSA P-256) carry
-  `versionName 1.0.7-dce.4`, `versionCode 12`, `packageName com.jarves.mh` and the SHA-256 of the
+  `versionName 1.0.7-dce.5`, `versionCode 13`, `packageName com.jarves.mh` and the SHA-256 of the
   bytes actually served; each one matches its lane, and the root `update.json` points at the release
-  bytes.
+  bytes. Each descriptor carries `notices` for all 21 languages.
 - Aliases resolve to the same bytes: `debug/latest.apk` = debug, `release/latest.apk` = release,
   root `latest.apk` = release, flat `MobileHarness.apk` = release. (The flat alias answered `404` for
   about a minute while the mirror was still copying and returned the release bytes on re-fetch.)
-- The served release APK reports `package: com.jarves.mh versionCode=12 versionName=1.0.7-dce.4`.
-- The shipped DEX contains the injected update client (`dexcoreupdate`/`DceArchiveUpdates` symbols)
-  **and** this release's own attachment code (`AttachmentPreview`), so the published artifact is the
-  one built from this source, updater included.
-- The version page (`.../v/12/`) and the app page render the categorized changelog with translated
-  section labels (e.g. `Hinzugefügt`, `Añadido`, `Добавлено`); the signed descriptor carries
-  `notices` for all 21 languages.
-- JVM tests for this build: **157, 0 failures, 0 skipped** (145 before, 12 new in
-  `AttachmentPreviewTest`).
+- The served release APK reports `package: com.jarves.mh versionCode=13 versionName=1.0.7-dce.5`.
+- The **published** debug APK's compiled manifest carries
+  `android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION` and `com.jarves.mh.runtime.ScreenCaptureService`
+  with `foregroundServiceType=0x20` (mediaProjection), read with
+  `aapt2 dump xmltree --file AndroidManifest.xml`; its DEX contains `ScreenCaptureService`,
+  `ScreenFrameFiles` and `ScreenCaptureResult`, plus the injected `dexcoreupdate` client.
+- The version page (`.../v/13/`) and the app page render the categorized changelog with translated
+  section labels (`Hinzugefügt`, `Añadido`, `Добавлено`, `जोड़ा`, `أُضيف`).
+- JVM tests for this build: **166, 0 failures, 0 skipped** (157 before, 9 new in
+  `ScreenFrameFilesTest`).
 
 ### Honest limits of the earlier internal placement (still true)
 

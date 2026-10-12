@@ -2,6 +2,8 @@ package com.jarves.mh.ui
 
 import android.Manifest
 import android.app.ActivityManager
+import android.app.Activity
+import android.media.projection.MediaProjectionManager
 import android.content.Intent
 import android.content.Context
 import android.content.pm.PackageManager
@@ -290,6 +292,7 @@ import com.jarves.mh.ui.attach.AttachmentPreview
 import com.jarves.mh.ui.attach.rememberAttachmentThumbnail
 import com.jarves.mh.ui.theme.AppLanguage
 import com.jarves.mh.ui.theme.AppThemeMode
+import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -415,6 +418,7 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
             attachmentRootPath = remember(state.activeProject?.id, state.activeProject?.rootPath) {
                 viewModel.attachmentRootPath()
             },
+            onScreenCaptureResult = viewModel::handleScreenCaptureResult,
             onBack = viewModel::closeProject,
             onSend = viewModel::sendPrompt,
             onStop = viewModel::stopTask,
@@ -4398,6 +4402,7 @@ private fun WorkspaceScreen(
     onRemoveAttachment: (String) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
     attachmentRootPath: String,
+    onScreenCaptureResult: (Int, Intent?) -> Unit,
     onBuildAndRunAndroid: () -> Unit,
     onAndroidAction: (AndroidAction) -> Unit,
     onRefreshAndroidDashboard: () -> Unit,
@@ -4464,6 +4469,18 @@ private fun WorkspaceScreen(
             if (saved && uri != null) onAddAttachments(listOf(uri))
         },
     )
+    // Screen-cast consent belongs to the system dialog; this launcher only carries its answer back.
+    val screenCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = { result -> onScreenCaptureResult(result.resultCode, result.data) },
+    )
+    val requestScreenshot: () -> Unit = {
+        runCatching {
+            val manager = context.getSystemService(MediaProjectionManager::class.java)
+                ?: error("no screen capture service")
+            screenCaptureLauncher.launch(manager.createScreenCaptureIntent())
+        }.onFailure { onScreenCaptureResult(Activity.RESULT_CANCELED, null) }
+    }
     val unknownAppsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = {
@@ -4772,6 +4789,7 @@ private fun WorkspaceScreen(
                     },
                     onRemoveAttachment = onRemoveAttachment,
                     onOpenAttachment = onOpenAttachment,
+                    onTakeScreenshot = requestScreenshot,
                     attachmentRootPath = attachmentRootPath,
                     onRunInTerminal = { command ->
                         selectedTab = WorkspaceTab.TERMINAL
@@ -6272,6 +6290,7 @@ private fun ChatTab(
     onRemoveAttachment: (String) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
     attachmentRootPath: String = "",
+    onTakeScreenshot: () -> Unit = {},
     onRunInTerminal: (String) -> Unit,
     onTakePhoto: () -> Unit = {},
     queuedFollowUps: List<QueuedFollowUp> = emptyList(),
@@ -6514,6 +6533,11 @@ private fun ChatTab(
                                     text = { Text(stringResource(R.string.chat_take_photo)) },
                                     leadingIcon = { Icon(Icons.Default.PhotoCamera, null) },
                                     onClick = { attachMenuOpen = false; onTakePhoto() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.chat_take_screenshot)) },
+                                    leadingIcon = { Icon(Icons.Default.Screenshot, null) },
+                                    onClick = { attachMenuOpen = false; onTakeScreenshot() },
                                 )
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.chat_choose_files)) },
