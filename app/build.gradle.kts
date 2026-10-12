@@ -131,8 +131,14 @@ android {
         }
         release {
             isMinifyEnabled = false
-            if (hasUploadSigning) {
-                signingConfig = signingConfigs.getByName("upload")
+            // Upstream signs the release lane with its own upload keystore. This fork publishes
+            // lab builds, and an unsigned lane cannot be published at all, so without
+            // MH_UPLOAD_* the release lane is signed with the Android debug certificate —
+            // a signed lab preview, never a Play/production key.
+            signingConfig = if (hasUploadSigning) {
+                signingConfigs.getByName("upload")
+            } else {
+                signingConfigs.getByName("debug")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

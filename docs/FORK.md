@@ -111,13 +111,29 @@ Measured on this host:
 | native runtime audit (DEXCORE) | `static_ok`, 7 native entries, 0 errors, 0 warnings |
 | witness in the built debug APK | 22 references to the new chat-control classes, `Find in conversation` present in `resources.arsc` |
 
-## 6. Release state and blockers
+## 6. Release state
 
-The archive lane is prepared but not published. Curation (`apps.MobileHarness`) and the categorized
-21-language changelog for `1.0.7-dce.1` pass `archive_changelog.py ensure/gate/preflight`
-(28,604 of 36,864 bytes).
+Published to the **internal** (owner-only, login-gated) DEXCORE archive as
+`Mobile Harness (DCE)` — https://dcenhancements.com/_internal/archive/projects/MobileHarness/ — because
+the APK embeds third-party agent payloads and the upstream README asks for a redistribution review.
 
-Two DEXCORE-side problems stopped the publish:
+| Lane | Artifact | Bytes | SHA-256 | Signer |
+| --- | --- | --- | --- | --- |
+| debug | `debug/MobileHarness(1.0.7-dce.1).apk` | 106,586,222 | `047d524a…` | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.1).apk` | 89,154,632 | `eec07e5d…` | debug lab cert `ab327339…` |
+
+Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
+and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
+written into the canonical internal archive with the signed update descriptors
+(`update.json` at the root and per lane, ECDSA P-256) and mirrored into the served website tree.
+The served bytes were re-hashed in place and match the descriptor; nothing else in the internal
+archive was lost (both trees now hold 37,186 files and no symlinks).
+
+The release lane is signed with the **Android debug lab certificate**, not a Play/production key:
+upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
+lane cannot be published at all.
+
+### What had to be fixed to get there
 
 1. **Play-baseline hardening corrupted the Gradle script.** `_ensure_16kb_packaging`
    (`scripts/play_baseline.py`) used `\s*` between `useLegacyPackaging` and `true`, which also
@@ -125,15 +141,37 @@ Two DEXCORE-side problems stopped the publish:
    `useLegacyPackaging = false` (`falseandroidResources.noCompress += "zst"`) and the Kotlin DSL no
    longer compiled. Fixed to horizontal whitespace only, with a regression test in
    `scripts/tests/test_native_extraction_policy.py`. Independently, this app needs extracted native
-   files, so `app/build.gradle.kts` now carries the documented
-   `dexcore:play-baseline allow-legacy-packaging` exemption.
-2. **An internal archive target records public URLs.** `_webdeploy_prune_latest_only_archive`
-   (`scripts/lib/website_deploy.sh`) writes app-entry URLs with a hardcoded
+   files (the PRoot loader and PRoot binary are executed from `nativeLibraryDir`), so
+   `app/build.gradle.kts` carries the documented `dexcore:play-baseline allow-legacy-packaging`
+   exemption instead of the forced `false`.
+2. **An internal archive target recorded public URLs.** `_webdeploy_prune_latest_only_archive`
+   (`scripts/lib/website_deploy.sh`) wrote app-entry URLs with a hardcoded
    `/archive/projects/apks/…` prefix while `apps.json` declares `root: /_internal/archive/projects`,
-   so the identity audit refuses with `APK URL must be a same-origin archive path`. The internal tree
-   (`${DEXCORE_DATA_DIR}/archive/internal`) is also not the tree the website serves. The half-written
-   internal entry and artifacts from the aborted deploy were removed again.
+   so the identity audit refused with `APK URL must be a same-origin archive path`. The pass now
+   takes the archive root (default unchanged, so the public archive is byte-identical — proven
+   against a fixture with the previous program) and `scripts/tests/test_prune_archive_urls.py`
+   covers it.
+3. **The internal mirror aborted on a stray symlink.** The served tree held
+   `projects/manga_reader/manga_reader` as an absolute symlink; `_scan_tree` refuses symlinks in the
+   destination, so every internal mirror aborted after the lane build. It is now a hardlink like the
+   archive's own aliases.
+4. **The internal index is rendered from a curated list.** An app appears on the internal page only
+   when it is registered in `render_internal_archive.CURATED_SOURCES`; the deploy's lane layout
+   (`debug/`, `release/`, `v/<code>/`) is not picked up by the renderer. MobileHarness is registered
+   with its online debug/release outputs, and `render-internal` rebuilt the catalog.
+5. Files that existed only in the served tree (manga_reader ×4, NPUDream ×1) were hardlinked into the
+   canonical tree first, so the mirror's delete pass had nothing to prune.
 
-A release lane is additionally unsigned here: `release` only gets a signing config when the upstream
-`MH_UPLOAD_*` keystore is provided, so publishing the release lane needs a signing decision first.
+### Honest limits
+
+- The internal archive sits behind the existing login gate: `/_internal/**` returns
+  `302 → /_internal/auth/login` for every path before any file lookup, so the served APK bytes were
+  verified on disk, not over HTTPS.
+- The rendered internal index dropped pre-existing `SplatVisionFresh` because that app's APK files
+  are missing in *both* trees while its `SHA256SUMS` still lists them; the old catalog advertised
+  two files that no longer exist. This is a pre-existing gap the re-render surfaced, not a
+  consequence of this release.
+- Device behaviour (install, runtime setup, the ported reading controls on a phone) is still an
+  open owner check.
+
 
