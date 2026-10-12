@@ -218,6 +218,20 @@
     <string name="agent_connection_verified">تم التحقق من اتصال %1$s.</string><string name="agent_status_verified">تم التحقق</string>
     <string name="chat_attach_files">إرفاق ملفات</string><string name="chat_take_photo">التقاط صورة</string><string name="chat_choose_files">اختيار ملفات</string><string name="chat_camera_unavailable">لا يتوفر تطبيق كاميرا</string><string name="chat_attachment_no_preview">لا معاينة</string>
     <string name="chat_take_screenshot">لقطة شاشة</string>
+    <string name="guidance_title">إرشادات المشروع</string>
+    <string name="guidance_desc">تُضاف إلى كل رسالة يرسلها هذا المشروع.</string>
+    <string name="guidance_instructions_label">قواعد المشروع</string>
+    <string name="guidance_instructions_hint">مثال: أبقِ أقل إصدار SDK عند 28، ولا تغيّر معرّف التطبيق</string>
+    <string name="guidance_personality_label">أسلوب العمل</string>
+    <string name="guidance_personality_hint">مثال: أجب بالألمانية التقنية المختصرة بلا حشو</string>
+    <string name="guidance_preview_label">معاينة — ما سيستلمه الوكيل</string>
+    <string name="guidance_preview_sample">رسالتك التالية</string>
+    <string name="guidance_mirror_note">يُكتب أيضًا في .mobileharness/project-guidance.md داخل المشروع.</string>
+    <string name="guidance_save">حفظ</string>
+    <string name="guidance_clear">إزالة</string>
+    <string name="guidance_open">إرشادات المشروع</string>
+    <string name="vm_guidance_saved">تم حفظ إرشادات المشروع</string>
+    <string name="vm_guidance_cleared">تمت إزالة إرشادات المشروع</string>
     <string name="chat_screenshot_attached">تم إرفاق لقطة الشاشة</string>
     <string name="chat_screenshot_denied">لم يُسمح بلقطة الشاشة</string>
     <string name="chat_screenshot_unsupported">هذا الجهاز لا يدعم لقطة الشاشة</string>

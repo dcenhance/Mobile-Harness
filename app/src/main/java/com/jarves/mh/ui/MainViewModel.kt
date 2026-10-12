@@ -60,6 +60,8 @@ import com.jarves.mh.runtime.AntigravityAuthState
 import com.jarves.mh.runtime.AntigravityAuthStatus
 import com.jarves.mh.runtime.AntigravityRuntimeBridge
 import com.jarves.mh.runtime.NativeSpawnProcess
+import com.jarves.mh.runtime.PromptOverlay
+import com.jarves.mh.runtime.AgentGuidance
 import com.jarves.mh.runtime.RuntimeInstallProgress
 import com.jarves.mh.runtime.ScreenCaptureResult
 import com.jarves.mh.runtime.ScreenCaptureService
@@ -322,6 +324,9 @@ data class AppUiState(
     val readOnlyMessages: List<ChatMessage> = emptyList(),
     val projectChats: List<ProjectChat> = emptyList(),
     val activeChatId: String? = null,
+
+    /** Standing project rules and working style, as the project guidance screen holds them. */
+    val guidance: AgentGuidance = AgentGuidance(),
     val workspaceFiles: List<WorkspaceEntry> = emptyList(),
     val androidProjectDetected: Boolean = false,
     val filesLoading: Boolean = false,
@@ -3005,6 +3010,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update {
             it.copy(
                 activeProject = project,
+                guidance = preferences.loadProjectGuidance(project.id),
                 workspaceVisible = true,
                 readOnlyProject = null,
                 readOnlyProjectChats = emptyList(),
@@ -3095,6 +3101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update {
             it.copy(
                 activeProject = null,
+                guidance = AgentGuidance(),
                 workspaceVisible = false,
                 projectChats = emptyList(),
                 activeChatId = null,
@@ -3174,6 +3181,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 projects = listOf(project) + it.projects,
                 activeProject = project,
+                guidance = AgentGuidance(),
                 workspaceVisible = true,
                 messages = listOf(ChatMessage(fromUser = false, text = "Hi! Tell me what you want to build or change.")),
                 liveProcess = emptyList(),
@@ -4736,6 +4744,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!started) _state.update { it.copy(toastMessage = str(R.string.chat_screenshot_unsupported)) }
     }
 
+    /**
+     * Stores the standing project guidance, mirrors it into the workspace so a person (and a later agent
+     * turn) can read it, and reports the result. The prompt itself is composed by the same
+     * [PromptOverlay.compose] call the guidance screen previews, so the preview cannot drift from what is
+     * sent.
+     */
+    fun saveGuidance(instructions: String, personality: String) {
+        val project = _state.value.activeProject ?: return
+        val normalized = PromptOverlay.effective(AgentGuidance(instructions, personality))
+        preferences.saveProjectGuidance(project.id, normalized)
+        _state.update {
+            it.copy(
+                guidance = normalized,
+                toastMessage = if (normalized.isEmpty) str(R.string.vm_guidance_cleared) else str(R.string.vm_guidance_saved),
+            )
+        }
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val root = projectWorkspaceRoot(project)
+                    val target = File(root, PromptOverlay.WORKSPACE_DOCUMENT_PATH)
+                    val document = PromptOverlay.workspaceDocument(normalized)
+                    if (document == null) {
+                        if (target.isFile) target.delete()
+                    } else {
+                        target.parentFile?.mkdirs()
+                        target.writeText(document)
+                    }
+                }
+            }
+            refreshProjectFiles()
+        }
+    }
+
     /** Workspace root of the active project, so the chat surface can show attachment thumbnails. */
     fun attachmentRootPath(): String {
         val project = _state.value.activeProject ?: return ""
@@ -4912,8 +4954,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         touchProject(project.id)
         persistMessages()
         val history = state.value.messages // includes all messages up to now
-        val runtimePrompt = if (attachments.isEmpty()) requestText else buildString {
-            appendLine(requestText)
+        // Standing project rules and working style are prepended here, once, for every agent: the
+        // bridges then add history and their own context to this already composed prompt.
+        val basePrompt = PromptOverlay.compose(requestText, state.value.guidance)
+        val runtimePrompt = if (attachments.isEmpty()) basePrompt else buildString {
+            appendLine(basePrompt)
             appendLine()
             appendLine("<attached_files>")
             attachments.forEach { attachment ->

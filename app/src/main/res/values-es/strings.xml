@@ -212,6 +212,20 @@
     <string name="agent_connection_verified">Conexión con %1$s verificada.</string><string name="agent_status_verified">Verificado</string>
     <string name="chat_attach_files">Adjuntar archivos</string><string name="chat_take_photo">Tomar foto</string><string name="chat_choose_files">Elegir archivos</string><string name="chat_camera_unavailable">No hay ninguna app de cámara disponible</string><string name="chat_attachment_no_preview">sin vista previa</string>
     <string name="chat_take_screenshot">Captura de pantalla</string>
+    <string name="guidance_title">Guía del proyecto</string>
+    <string name="guidance_desc">Se añade a cada mensaje que envía este proyecto.</string>
+    <string name="guidance_instructions_label">Reglas del proyecto</string>
+    <string name="guidance_instructions_hint">p. ej. mantener el SDK mínimo en 28, nunca cambiar el id de la app</string>
+    <string name="guidance_personality_label">Estilo de trabajo</string>
+    <string name="guidance_personality_hint">p. ej. responder en alemán técnico breve, sin relleno</string>
+    <string name="guidance_preview_label">Vista previa: lo que recibe el agente</string>
+    <string name="guidance_preview_sample">tu próximo mensaje</string>
+    <string name="guidance_mirror_note">También se escribe en .mobileharness/project-guidance.md del proyecto.</string>
+    <string name="guidance_save">Guardar</string>
+    <string name="guidance_clear">Quitar</string>
+    <string name="guidance_open">Guía del proyecto</string>
+    <string name="vm_guidance_saved">Guía del proyecto guardada</string>
+    <string name="vm_guidance_cleared">Guía del proyecto eliminada</string>
     <string name="chat_screenshot_attached">Captura adjuntada</string>
     <string name="chat_screenshot_denied">No se permitió la captura de pantalla</string>
     <string name="chat_screenshot_unsupported">Este dispositivo no ofrece captura de pantalla</string>

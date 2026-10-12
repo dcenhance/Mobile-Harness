@@ -212,6 +212,20 @@
     <string name="agent_connection_verified">Подключение к %1$s проверено.</string><string name="agent_status_verified">Проверено</string>
     <string name="chat_attach_files">Прикрепить файлы</string><string name="chat_take_photo">Сделать фото</string><string name="chat_choose_files">Выбрать файлы</string><string name="chat_camera_unavailable">Нет доступного приложения камеры</string><string name="chat_attachment_no_preview">без предпросмотра</string>
     <string name="chat_take_screenshot">Снимок экрана</string>
+    <string name="guidance_title">Руководство проекта</string>
+    <string name="guidance_desc">Добавляется к каждому сообщению этого проекта.</string>
+    <string name="guidance_instructions_label">Правила проекта</string>
+    <string name="guidance_instructions_hint">напр. minSdk 28, идентификатор приложения не менять</string>
+    <string name="guidance_personality_label">Стиль работы</string>
+    <string name="guidance_personality_hint">напр. отвечать коротко и технически, без воды</string>
+    <string name="guidance_preview_label">Предпросмотр — что получит агент</string>
+    <string name="guidance_preview_sample">ваше следующее сообщение</string>
+    <string name="guidance_mirror_note">Также записывается в .mobileharness/project-guidance.md в проекте.</string>
+    <string name="guidance_save">Сохранить</string>
+    <string name="guidance_clear">Удалить</string>
+    <string name="guidance_open">Руководство проекта</string>
+    <string name="vm_guidance_saved">Руководство проекта сохранено</string>
+    <string name="vm_guidance_cleared">Руководство проекта удалено</string>
     <string name="chat_screenshot_attached">Снимок экрана прикреплён</string>
     <string name="chat_screenshot_denied">Снимок экрана не разрешён</string>
     <string name="chat_screenshot_unsupported">Это устройство не поддерживает снимок экрана</string>

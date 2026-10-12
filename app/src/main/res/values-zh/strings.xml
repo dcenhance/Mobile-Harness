@@ -212,6 +212,20 @@
     <string name="agent_connection_verified">%1$s 连接已验证。</string><string name="agent_status_verified">已验证</string>
     <string name="chat_attach_files">附加文件</string><string name="chat_take_photo">拍照</string><string name="chat_choose_files">选择文件</string><string name="chat_camera_unavailable">没有可用的相机应用</string><string name="chat_attachment_no_preview">无预览</string>
     <string name="chat_take_screenshot">截屏</string>
+    <string name="guidance_title">项目指引</string>
+    <string name="guidance_desc">本项目每条消息都会带上。</string>
+    <string name="guidance_instructions_label">项目规则</string>
+    <string name="guidance_instructions_hint">例如：最低 SDK 保持 28，绝不更改应用 ID</string>
+    <string name="guidance_personality_label">工作风格</string>
+    <string name="guidance_personality_hint">例如：用简短的技术德语回答，不要客套</string>
+    <string name="guidance_preview_label">预览——代理将收到</string>
+    <string name="guidance_preview_sample">你的下一条消息</string>
+    <string name="guidance_mirror_note">同时写入项目中的 .mobileharness/project-guidance.md。</string>
+    <string name="guidance_save">保存</string>
+    <string name="guidance_clear">移除</string>
+    <string name="guidance_open">项目指引</string>
+    <string name="vm_guidance_saved">项目指引已保存</string>
+    <string name="vm_guidance_cleared">项目指引已移除</string>
     <string name="chat_screenshot_attached">已附加截屏</string>
     <string name="chat_screenshot_denied">未允许截屏</string>
     <string name="chat_screenshot_unsupported">此设备不支持截屏</string>

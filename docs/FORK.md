@@ -181,6 +181,23 @@ although the project's own NDK comment warns that a wrong page size makes the na
   whose address disagrees with its offset, an ELF without LOAD segments, an empty file, a text file and
   a 64 MiB sparse file that must be inspected from its headers alone.
 
+### 3.9 Standing project guidance, visible and editable (1.0.7-dce.7)
+
+The app composed the prompt that goes to the agent (request plus an `<attached_files>` block) but the
+user could neither add standing guidance nor see what the agent actually receives.
+
+- `runtime/PromptOverlay.kt` — `AgentGuidance(instructions, personality)` with per-field caps
+  (4000/2000 chars, a shortened field is marked), blank-line collapse, `compose(request, guidance)`
+  (rules first, then working style, then the request verbatim; unchanged with empty guidance) and
+  `workspaceDocument(guidance)` for the mirror file.
+- The **same** `compose` call feeds the send path (`MainViewModel.startPrompt`) and the dialog's
+  preview, so what is previewed is what is sent; the preview uses the last real request as its example.
+- Stored per project (`AppPreferences.saveProjectGuidance`), mirrored to
+  `.mobileharness/project-guidance.md` in the workspace (app-owned path, deleted again when the text is
+  cleared), and reachable from the chat top bar.
+- 13 JVM tests pin the composition (order, empty case, request last), the caps, the collapse, the mirror
+  document and that preview and send are the same call.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive
@@ -227,8 +244,8 @@ as history in the internal archive and are no longer the delivery path.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.6).apk` | 106,932,829 | see §6.1 | debug lab cert `ab327339…` |
-| release | `release/MobileHarness(1.0.7-dce.6).apk` | 89,422,108 | see §6.1 | debug lab cert `ab327339…` |
+| debug | `debug/MobileHarness(1.0.7-dce.7).apk` | 106,986,041 | see §6.1 | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.7).apk` | 89,485,756 | see §6.1 | debug lab cert `ab327339…` |
 
 Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
 and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
@@ -241,7 +258,7 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.6)
+### 6.1 Measured release evidence (1.0.7-dce.7)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
@@ -249,26 +266,14 @@ local file listing.
 
 | Lane | Artifact | Bytes | SHA-256 | Signer (descriptor + APK) |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.6).apk` | 106,932,829 | `3aae64d76d042a0c58db530a3116e59ed6df09baa4b65952da61effb23e9e6dd` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
-| release | `release/MobileHarness(1.0.7-dce.6).apk` | 89,422,108 | `440da9fe3823564de2ebeaec420d97de88fea00b29ab4ed1db93ca59448ed51a` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| debug | `debug/MobileHarness(1.0.7-dce.7).apk` | 106,986,041 | `c8aea08304a3201ae32038019d7bf6ea2e9c1d82714ebe62203f0c1173d028d4` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
+| release | `release/MobileHarness(1.0.7-dce.7).apk` | 89,485,756 | `b031259941752eda7eadcac2c84f7c461153aaca67f5eb7ab8a8a040e5b48793` | `ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d` |
 
-- Both lane descriptors (`debug/update.json`, `release/update.json`, ECDSA P-256) carry
-  `versionName 1.0.7-dce.6`, `versionCode 14`, `packageName com.jarves.mh` and the SHA-256 of the
-  bytes actually served; each one matches its lane, the root `update.json` points at the release bytes,
-  and every descriptor carries `notices` for all 21 languages.
-- Aliases resolve to the same bytes: `debug/latest.apk` = debug, `release/latest.apk` = release, root
-  `latest.apk` = release, flat `MobileHarness.apk` = release (again `404` for about a minute while the
-  mirror was copying, then the release bytes on re-fetch).
-- The served release APK reports `package: com.jarves.mh versionCode=14 versionName=1.0.7-dce.6`, and
-  its DEX contains `NativeLoadAlignment` / `NativeReadiness` next to the earlier features
-  (`ScreenCaptureService`) and the injected `dexcoreupdate` client.
-- The published debug APK's own seven `lib/arm64-v8a/*.so` files all use a **16 KiB LOAD alignment**
-  (`0x4000`) with congruent segments, checked with GNU `readelf -lW` and with an independent second
-  implementation of the same rule — so the new check reports "ready" for them on a 16 KiB device.
-- The version page (`.../v/14/`) and the app page render the categorized changelog with translated
-  section labels (`Hinzugefügt`, `Añadido`, `Добавлено`, `जोड़ा`, `أُضيف`).
-- JVM tests for this build: **182, 0 failures, 0 skipped** (166 before, 16 new in
-  `NativeLoadAlignmentTest`).
+- Both lane descriptors carry `versionName 1.0.7-dce.7`, `versionCode 15`, `packageName com.jarves.mh`
+  and the SHA-256 of the bytes actually served (checked over HTTPS for the debug lane); the root
+  `update.json` points at the release bytes, every descriptor carries `notices` for all 21 languages,
+  and `debug/latest.apk` = debug, `release/latest.apk` = release, root `latest.apk` = release.
+- JVM tests for this build: **195, 0 failures, 0 skipped** (182 before, 13 new in `PromptOverlayTest`).
 
 ### Honest limits of the earlier internal placement (still true)
 

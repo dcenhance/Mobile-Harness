@@ -8,6 +8,7 @@ import com.jarves.mh.model.Project
 import com.jarves.mh.model.ProjectKind
 import com.jarves.mh.model.ProjectType
 import com.jarves.mh.model.AndroidTemplate
+import com.jarves.mh.runtime.AgentGuidance
 import com.jarves.mh.model.ProjectChat
 import com.jarves.mh.model.ProviderKind
 import com.jarves.mh.model.ProviderProfile
@@ -323,6 +324,29 @@ class AppPreferences(private val context: Context) {
     }
 
     private val chatsDir = File(context.filesDir, "chats").also { it.mkdirs() }
+
+    /**
+     * Standing guidance for one project. Stored per project because the rules belong to the workspace,
+     * not to the installation; a project without guidance returns empty guidance.
+     */
+    fun saveProjectGuidance(projectId: String, guidance: AgentGuidance) {
+        preferences.edit()
+            .putString("guidance_instructions_$projectId", guidance.instructions)
+            .putString("guidance_personality_$projectId", guidance.personality)
+            .apply()
+    }
+
+    fun loadProjectGuidance(projectId: String): AgentGuidance = AgentGuidance(
+        instructions = preferences.getString("guidance_instructions_$projectId", "").orEmpty(),
+        personality = preferences.getString("guidance_personality_$projectId", "").orEmpty(),
+    )
+
+    fun clearProjectGuidance(projectId: String) {
+        preferences.edit()
+            .remove("guidance_instructions_$projectId")
+            .remove("guidance_personality_$projectId")
+            .apply()
+    }
 
     fun saveProjectChats(projectId: String, chats: List<ProjectChat>) {
         val projectDir = File(chatsDir, projectId).also { it.mkdirs() }

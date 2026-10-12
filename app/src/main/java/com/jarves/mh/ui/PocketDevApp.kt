@@ -296,6 +296,10 @@ import com.jarves.mh.ui.attach.AttachmentPreview
 import com.jarves.mh.ui.attach.rememberAttachmentThumbnail
 import com.jarves.mh.ui.theme.AppLanguage
 import com.jarves.mh.ui.theme.AppThemeMode
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.filled.Rule
+import com.jarves.mh.runtime.AgentGuidance
+import com.jarves.mh.runtime.PromptOverlay
 import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Terminal
@@ -423,6 +427,8 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
                 viewModel.attachmentRootPath()
             },
             onScreenCaptureResult = viewModel::handleScreenCaptureResult,
+            guidance = state.guidance,
+            onSaveGuidance = viewModel::saveGuidance,
             onBack = viewModel::closeProject,
             onSend = viewModel::sendPrompt,
             onStop = viewModel::stopTask,
@@ -4465,6 +4471,8 @@ private fun WorkspaceScreen(
     onOpenAttachment: (ChatAttachment) -> Unit,
     attachmentRootPath: String,
     onScreenCaptureResult: (Int, Intent?) -> Unit,
+    guidance: AgentGuidance,
+    onSaveGuidance: (String, String) -> Unit,
     onBuildAndRunAndroid: () -> Unit,
     onAndroidAction: (AndroidAction) -> Unit,
     onRefreshAndroidDashboard: () -> Unit,
@@ -4563,6 +4571,8 @@ private fun WorkspaceScreen(
     // Conversation find lives here so the query, the hit position and the open state survive a tab
     // switch inside the same workspace.
     var chatSearchOpen by rememberSaveable { mutableStateOf(false) }
+    // Standing rules and working style for this project; the dialog previews the very prompt that is sent.
+    var guidanceOpen by rememberSaveable { mutableStateOf(false) }
     var chatSearchQuery by rememberSaveable { mutableStateOf("") }
     var chatSearchIndex by rememberSaveable { mutableStateOf(-1) }
 
@@ -4768,6 +4778,9 @@ private fun WorkspaceScreen(
                         }
                     }
                     if (selectedTab == WorkspaceTab.CHAT) {
+                        IconButton(onClick = { guidanceOpen = true }) {
+                            Icon(Icons.Default.Rule, stringResource(R.string.guidance_open))
+                        }
                         IconButton(
                             onClick = {
                                 chatSearchOpen = !chatSearchOpen
@@ -4931,6 +4944,111 @@ private fun WorkspaceScreen(
                     onKeepFileChange,
                 )
                 WorkspaceTab.PREVIEW -> PreviewTab(state.previewReady, state.previewUrl)
+            }
+        }
+        if (guidanceOpen) {
+            GuidanceDialog(
+                guidance = guidance,
+                // The preview uses the last request as its example, so the shown text is a real one
+                // rather than an invented sample.
+                sampleRequest = state.currentTaskRequest ?: stringResource(R.string.guidance_preview_sample),
+                onDismiss = { guidanceOpen = false },
+                onSave = { instructions, personality ->
+                    onSaveGuidance(instructions, personality)
+                    guidanceOpen = false
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Standing project guidance: the rules and the working style that every prompt carries, plus the
+ * composed preview. The preview calls the same [PromptOverlay.compose] the send path uses, so what is
+ * shown here is what the agent receives.
+ */
+@Composable
+private fun GuidanceDialog(
+    guidance: AgentGuidance,
+    sampleRequest: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit,
+) {
+    var instructions by remember(guidance) { mutableStateOf(guidance.instructions) }
+    var personality by remember(guidance) { mutableStateOf(guidance.personality) }
+    val effective = remember(instructions, personality) {
+        PromptOverlay.effective(AgentGuidance(instructions, personality))
+    }
+    val preview = remember(effective, sampleRequest) { PromptOverlay.compose(sampleRequest, effective) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(stringResource(R.string.guidance_title), fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.guidance_desc),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.guidance_instructions_label), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                OutlinedTextField(
+                    value = instructions,
+                    onValueChange = { if (it.length <= PromptOverlay.MAX_INSTRUCTIONS + 200) instructions = it },
+                    placeholder = { Text(stringResource(R.string.guidance_instructions_hint), fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
+                )
+                Text(
+                    "${effective.instructions.length} / ${PromptOverlay.MAX_INSTRUCTIONS}",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.guidance_personality_label), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                OutlinedTextField(
+                    value = personality,
+                    onValueChange = { if (it.length <= PromptOverlay.MAX_PERSONALITY + 200) personality = it },
+                    placeholder = { Text(stringResource(R.string.guidance_personality_hint), fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
+                )
+                Text(
+                    "${effective.personality.length} / ${PromptOverlay.MAX_PERSONALITY}",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.guidance_preview_label), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
+                    Text(
+                        preview,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 150.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(10.dp),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                    )
+                }
+                Text(
+                    stringResource(R.string.guidance_mirror_note),
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onSave(instructions, personality) }) {
+                        Text(stringResource(R.string.guidance_save))
+                    }
+                    if (!guidance.isEmpty) {
+                        TextButton(onClick = { onSave("", "") }) {
+                            Text(stringResource(R.string.guidance_clear))
+                        }
+                    }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                }
             }
         }
     }

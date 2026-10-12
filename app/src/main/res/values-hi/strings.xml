@@ -212,6 +212,20 @@
     <string name="agent_connection_verified">%1$s कनेक्शन सत्यापित हो गया।</string><string name="agent_status_verified">सत्यापित</string>
     <string name="chat_attach_files">फ़ाइलें संलग्न करें</string><string name="chat_take_photo">फ़ोटो लें</string><string name="chat_choose_files">फ़ाइलें चुनें</string><string name="chat_camera_unavailable">कोई कैमरा ऐप उपलब्ध नहीं है</string><string name="chat_attachment_no_preview">पूर्वावलोकन नहीं</string>
     <string name="chat_take_screenshot">स्क्रीनशॉट</string>
+    <string name="guidance_title">प्रोजेक्ट मार्गदर्शन</string>
+    <string name="guidance_desc">इस प्रोजेक्ट के हर संदेश में जाता है।</string>
+    <string name="guidance_instructions_label">प्रोजेक्ट नियम</string>
+    <string name="guidance_instructions_hint">उदा. न्यूनतम SDK 28 रखें, ऐप आईडी कभी न बदलें</string>
+    <string name="guidance_personality_label">कार्य शैली</string>
+    <string name="guidance_personality_hint">उदा. संक्षिप्त तकनीकी जर्मन में उत्तर दें, बिना भराव</string>
+    <string name="guidance_preview_label">पूर्वावलोकन — एजेंट को क्या मिलेगा</string>
+    <string name="guidance_preview_sample">आपका अगला संदेश</string>
+    <string name="guidance_mirror_note">प्रोजेक्ट में .mobileharness/project-guidance.md में भी लिखा जाता है।</string>
+    <string name="guidance_save">सेव करें</string>
+    <string name="guidance_clear">हटाएँ</string>
+    <string name="guidance_open">प्रोजेक्ट मार्गदर्शन</string>
+    <string name="vm_guidance_saved">प्रोजेक्ट मार्गदर्शन सेव हुआ</string>
+    <string name="vm_guidance_cleared">प्रोजेक्ट मार्गदर्शन हटाया गया</string>
     <string name="chat_screenshot_attached">स्क्रीनशॉट संलग्न</string>
     <string name="chat_screenshot_denied">स्क्रीन कैप्चर की अनुमति नहीं दी गई</string>
     <string name="chat_screenshot_unsupported">यह डिवाइस स्क्रीन कैप्चर समर्थित नहीं करता</string>
