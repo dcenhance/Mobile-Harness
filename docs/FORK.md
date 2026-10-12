@@ -141,8 +141,11 @@ the APK embeds third-party agent payloads and the upstream README asks for a red
 
 | Lane | Artifact | Bytes | SHA-256 | Signer |
 | --- | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.1).apk` | 106,586,222 | `047d524a…` | debug lab cert `ab327339…` |
-| release | `release/MobileHarness(1.0.7-dce.1).apk` | 89,154,632 | `eec07e5d…` | debug lab cert `ab327339…` |
+| debug | `debug/MobileHarness(1.0.7-dce.2).apk` | 106,672,054 | `947baa42…` | debug lab cert `ab327339…` |
+| release | `release/MobileHarness(1.0.7-dce.2).apk` | 89,223,496 | `15d41f30…` | debug lab cert `ab327339…` |
+
+The previous `1.0.7-dce.1` lanes stay published as history (the internal page keeps a snapshot
+history of two builds).
 
 Both lanes were built by DEXCORE's own `dexcore deploy website` run (which builds `assembleDebug`
 and `assembleRelease`, i.e. both flavors, and passes the native runtime audit with `static_ok`), then
@@ -180,7 +183,9 @@ lane cannot be published at all.
 4. **The internal index is rendered from a curated list.** An app appears on the internal page only
    when it is registered in `render_internal_archive.CURATED_SOURCES`; the deploy's lane layout
    (`debug/`, `release/`, `v/<code>/`) is not picked up by the renderer. MobileHarness is registered
-   with its online debug/release outputs, and `render-internal` rebuilt the catalog.
+   with its online debug/release outputs, and `render-internal` rebuilt the catalog. The same pass now
+   reads the sibling `output-metadata.json` of a Gradle output, so the internal page names the real
+   version and package instead of "not recorded" — without parsing the artifact.
 5. Files that existed only in the served tree (manga_reader ×4, NPUDream ×1) were hardlinked into the
    canonical tree first, so the mirror's delete pass had nothing to prune.
 
