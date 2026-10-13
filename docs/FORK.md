@@ -273,6 +273,37 @@ the escape refusals (a `..` file, a `a/b` name, a NUL name, a blank name), the c
 cancel path, a failing read, progress order and the naming rules. A phone run is **not** part of this
 evidence.
 
+### 3.13 Search options and project-wide replace (1.0.7-dce.11)
+
+Find-in-files was literal and case-insensitive, with no way to change that and no way to replace
+anything; measured before this change, the walk and the matcher had exactly one mode and `replaceAll`
+had no call site outside the bridges' own bookkeeping.
+
+- `text/SearchQuery.kt` — one compiled query for finding *and* replacing, so what the list shows is what
+  a rewrite would change. Whole-word boundaries are built into the pattern as lookarounds, which keeps
+  the user's own capture groups intact (`$1` still means the user's first group) and makes an accepted
+  match an accepted replacement. A literal search walks with `regionMatches` and a literal replacement
+  never re-scans the text it just wrote (`"a"` → `"aa"` on `"aa"` stays four characters, not a runaway).
+  An unusable pattern or an impossible group reference is refused instead of written.
+- `runtime/WorkspaceFileWalk.kt` — the directory walk both features share (`WorkspaceTextSearch` now
+  delegates to it), so a replace can only touch files a search would have offered: no symlinks, nothing
+  outside the root, no `.claude*` metadata, generated trees held back.
+- `runtime/WorkspaceReplace.kt` — **plan first, write after**: the plan holds the new content of every
+  affected file, so a run either writes all of it or nothing at all. Guards: a file whose bytes do not
+  survive a UTF-8 decode/encode round trip is counted as unreadable rather than corrupted, line endings
+  are preserved exactly (a CRLF file stays CRLF, a missing final newline is not added), a very long single
+  line is left unchanged and counted, POSIX permissions are carried over (an executable script keeps its
+  bit), and the file-count, byte, depth and line limits stop and *say* they stopped. `undo` restores the
+  previous bytes exactly.
+- `ui/PocketDevApp.kt` — the screen gains option chips (case, whole words, pattern), a replacement
+  field, a plan row that lists the affected files with counts and a changed-line sample, and a result row
+  with undo.
+
+`SearchQueryTest` (16) and `WorkspaceReplaceTest` (15) run against real files on disk: content compared
+byte for byte, CRLF and no-final-newline preserved, a Latin-1 file refused, a symlink never rewritten
+(the file it points at is checked afterwards), the executable bit, the caps, a cancel-free plan, and the
+undo restoring the exact original. A phone run is **not** part of this evidence.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive
@@ -333,7 +364,7 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.10)
+### 6.1 Measured release evidence (1.0.7-dce.11)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
@@ -341,39 +372,37 @@ local file listing.
 
 | Lane | Artifact | Bytes | SHA-256 |
 | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.10).apk` | 107,139,053 | `f1a9ce4adcfea2768d8626919a458a1dbf5a9a7ff023ce68888fe868bc686791` |
-| release | `release/MobileHarness(1.0.7-dce.10).apk` | 89,578,452 | `0449b97ae5d5263b725259ec3e91be58276ec44b3f3d725fbc558659e821c156` |
+| debug | `debug/MobileHarness(1.0.7-dce.11).apk` | 107,264,909 | `be3acdf58b0f42951ac812b945f79812f2612ef1a2d44e338c7832d5b255eef6` |
+| release | `release/MobileHarness(1.0.7-dce.11).apk` | 89,675,040 | `237666b17fcb8d308109949a748eb0eb73b50e93ee95bf71ae25900ab1d15399` |
 
-- Both lane descriptors carry `versionName 1.0.7-dce.10`, `versionCode 18`, `packageName com.jarves.mh`,
+- Both lane descriptors carry `versionName 1.0.7-dce.11`, `versionCode 19`, `packageName com.jarves.mh`,
   the SHA-256 of the served bytes, the Android debug lab certificate
   (`ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d`, not a Play key) and `notices` for
-  all 21 languages; the root `update.json` points at the release bytes, and `release/latest.apk` and the
-  root `latest.apk` serve the release bytes.
-- JVM tests for this build: **250, 0 failures, 0 skipped** (238 before, 12 new in `FolderImportTest`,
-  which copies real trees on disk and checks the content byte for byte).
-- The flat alias `MobileHarness.apk` deserves a note: its **content** is correct — the file on the served
-  path (`/srv/websites/dcenhancements.com/public/archive/projects/apks/MobileHarness.apk`, one inode with
-  the canonical and mirror trees) hashes to the release bytes above — but the **HTTP response** for that
-  URL answered intermittently for about ten minutes after each of the last two publishes: runs of `200`
-  with the correct bytes alternating with runs of the site's normal not-found body
-  (`{"ok": false, "error": "not_found"}`, 41 bytes, the same body a non-existent alias returns). Every
-  lane URL, both `latest.apk` aliases and the root `latest.apk` were stable and correct throughout. That
-  points at a cache or propagation step in front of the static tree rather than at the archive, and it
-  never affects any URL the archive page or the updater advertises.
+  all 21 languages; the root `update.json` points at the release bytes, and `release/latest.apk`, the
+  versioned release file and the root `latest.apk` all serve exactly those bytes.
+- JVM tests for this build: **281, 0 failures, 0 skipped** (250 before, 31 new — 16 in `SearchQueryTest`,
+  15 in `WorkspaceReplaceTest`).
+- The flat alias `MobileHarness.apk` behaves as documented below (intermittently `404` for a few minutes
+  after a publish, then the release bytes); the lane URLs were correct immediately.
 
-### 6.2 Measured release evidence (1.0.7-dce.9)
+### 6.2 Earlier releases (measured the same way)
 
-| Lane | Artifact | Bytes | SHA-256 |
-| --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.9).apk` | 107,075,341 | `d476da0e84fc93660cc05a13c69f92645ab0d928cdedd841b4d4bbcdf4e7d902` |
-| release | `release/MobileHarness(1.0.7-dce.9).apk` | 89,528,228 | `deb1639fc71ffe9a12156e326abf5a44cd14de9ee78bdf411d02f9ba827b4e90` |
+| Version | Code | Debug bytes / SHA-256 | Release bytes / SHA-256 | Tests |
+| --- | --- | --- | --- | --- |
+| 1.0.7-dce.10 | 18 | 107,139,053 `f1a9ce4adcfea276…` | 89,578,452 `0449b97ae5d5263b…` | 250 |
+| 1.0.7-dce.9 | 17 | 107,075,341 `d476da0e84fc9366…` | 89,528,228 `deb1639fc71ffe9a…` | 238 |
+| 1.0.7-dce.8 | 16 | 107,023,361 `8a8bd68cec4ee3a1…` | 89,490,016 `3386b7d9c460b866…` | 221 |
 
-- 21 language tables in both descriptors, `versionCode 17`, same debug lab certificate; **238 tests, 0 failures**.
-- The flat alias answered intermittently for several minutes after the publish: plain requests alternated
-  between `200` with the correct bytes and a `404` with `{"ok": false, "error": "not_found"}` from a
-  dynamic backend, while the lane URLs and versioned files were stable throughout. Once settled it served
-  the release bytes exactly. Worth a look in the website/archive layer; it never affected any URL the
-  archive page or the updater advertises.
+- **The flat alias `<Slug>.apk` can flap at the HTTP layer, and it is not the archive's fault.** Measured
+  repeatedly on dce.9 and dce.10: requests for `/archive/projects/apks/MobileHarness.apk` returned runs of
+  `200` with the correct bytes alternating with runs of the site's normal not-found body (41 bytes,
+  `{"ok": false, "error": "not_found"}` — the same body a non-existent alias returns) for about ten
+  minutes after a publish, while every lane URL and `latest.apk` were correct throughout. The file itself
+  is fine: the served path, the mirror tree and the canonical archive resolve to one inode whose SHA-256
+  equals the published release. Treat it as a cache or propagation step in front of the static tree; verify
+  a release through the lane URLs and the served file's hash, and never conclude from one 404.
+- The flat alias content, once it answers: for 1.0.7-dce.10 it was hashed over HTTPS as
+  `0449b97a…` (the release bytes), and the served file on disk hashed identically.
 
 ### Honest limits of the earlier internal placement (still true)
 
