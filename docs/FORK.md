@@ -351,10 +351,15 @@ local file listing.
   root `latest.apk` serve the release bytes.
 - JVM tests for this build: **250, 0 failures, 0 skipped** (238 before, 12 new in `FolderImportTest`,
   which copies real trees on disk and checks the content byte for byte).
-- The flat alias `MobileHarness.apk` behaved as measured in dce.9: right after the publish it answered
-  a `404` with a small JSON body from a dynamic backend for a few minutes while every lane URL was
-  already correct, then settled and served the release bytes. Same open item in the website layer, not a
-  property of this build.
+- The flat alias `MobileHarness.apk` deserves a note: its **content** is correct — the file on the served
+  path (`/srv/websites/dcenhancements.com/public/archive/projects/apks/MobileHarness.apk`, one inode with
+  the canonical and mirror trees) hashes to the release bytes above — but the **HTTP response** for that
+  URL answered intermittently for about ten minutes after each of the last two publishes: runs of `200`
+  with the correct bytes alternating with runs of the site's normal not-found body
+  (`{"ok": false, "error": "not_found"}`, 41 bytes, the same body a non-existent alias returns). Every
+  lane URL, both `latest.apk` aliases and the root `latest.apk` were stable and correct throughout. That
+  points at a cache or propagation step in front of the static tree rather than at the archive, and it
+  never affects any URL the archive page or the updater advertises.
 
 ### 6.2 Measured release evidence (1.0.7-dce.9)
 
