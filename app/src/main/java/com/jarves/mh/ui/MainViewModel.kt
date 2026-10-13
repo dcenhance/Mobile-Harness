@@ -61,6 +61,10 @@ import com.jarves.mh.runtime.AntigravityAuthStatus
 import com.jarves.mh.runtime.AntigravityRuntimeBridge
 import com.jarves.mh.runtime.NativeSpawnProcess
 import com.jarves.mh.runtime.AgentDeviceBridge
+import com.jarves.mh.runtime.FolderImport
+import com.jarves.mh.runtime.FolderImportResult
+import com.jarves.mh.runtime.FolderImporter
+import com.jarves.mh.runtime.SafFolderSource
 import com.jarves.mh.runtime.PromptOverlay
 import com.jarves.mh.runtime.AgentGuidance
 import com.jarves.mh.runtime.RuntimeInstallProgress
@@ -332,6 +336,12 @@ data class AppUiState(
     /** True while the read-only device bridge answers the agents' `mh-device` command. */
     val deviceBridgeEnabled: Boolean = true,
     val deviceBridgeRunning: Boolean = false,
+    /** True while a picked folder is being copied into the workspace. */
+    val folderImportRunning: Boolean = false,
+
+    /** Files and bytes copied so far, while an import runs. */
+    val folderImportProgress: Pair<Int, Long>? = null,
+
     val workspaceFiles: List<WorkspaceEntry> = emptyList(),
     val androidProjectDetected: Boolean = false,
     val filesLoading: Boolean = false,
@@ -4419,7 +4429,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun fileOpsBlocked(): Boolean {
         val current = _state.value
         val busy = current.isRunning || current.projectTerminalRunning || current.androidBuildRunning ||
-            current.projectExportRunning
+            current.projectExportRunning || current.folderImportRunning
         if (busy) _state.update { it.copy(toastMessage = str(R.string.fm_busy)) }
         return busy
     }
@@ -4522,6 +4532,91 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             check(target.deleteRecursively()) { str(R.string.fm_protected) }
             str(R.string.fm_deleted, name)
         }
+    }
+
+    /** True while the user has asked the running folder import to stop. */
+    private val folderImportCancel = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Copies a folder the user picked on the phone into the workspace. The tree is read through document
+     * access only — nothing is written back into the picked folder — and the destination is a new folder
+     * whose name follows the app's collision rule. Build output, tool caches and unusable names are
+     * skipped and counted, and the run reports what it did instead of only "done".
+     */
+    fun importWorkspaceFolder(parentPath: String, treeUri: Uri) {
+        val project = _state.value.activeProject ?: return
+        if (fileOpsBlocked() || _state.value.folderImportRunning) return
+        folderImportCancel.set(false)
+        _state.update { it.copy(folderImportRunning = true, folderImportProgress = null) }
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching {
+                    val parent = safeWorkspacePath(project, parentPath)?.takeIf(File::isDirectory)
+                        ?: error(str(R.string.fm_protected))
+                    val source = SafFolderSource(app, treeUri)
+                    val existing = parent.list()?.toSet().orEmpty()
+                    val target = File(parent, FolderImport.uniqueName(existing, FolderImport.sanitizeSegment(source.rootName)))
+                    FolderImporter(
+                        source = source,
+                        targetDirectory = target,
+                        onProgress = { entries, bytes ->
+                            // Throttled: a 20k-file import must not push 20k UI states.
+                            if (entries % 25 == 0) {
+                                _state.update { it.copy(folderImportProgress = entries to bytes) }
+                            }
+                        },
+                        isCancelled = { folderImportCancel.get() },
+                    ).run()
+                }
+            }
+            _state.update { it.copy(folderImportRunning = false, folderImportProgress = null) }
+            outcome
+                .onSuccess { result ->
+                    _state.update { it.copy(toastMessage = describeFolderImport(result)) }
+                    if (result.entries > 0 && _state.value.activeProject?.id == project.id) {
+                        reloadWorkspaceFolder(project, parentPath)
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(toastMessage = str(R.string.fm_failed, error.message ?: str(R.string.vm_unknown_error)))
+                    }
+                }
+        }
+    }
+
+    /** Stops a folder import; what was already copied stays in the workspace. */
+    fun cancelFolderImport() {
+        if (_state.value.folderImportRunning) folderImportCancel.set(true)
+    }
+
+    private fun describeFolderImport(result: FolderImportResult): String {
+        val size = FolderImport.formatBytes(result.bytes)
+        val message = if (result.cancelled) {
+            AppStrings.context(getApplication()).resources
+                .getQuantityString(R.plurals.fm_import_cancelled, result.entries, result.entries)
+        } else {
+            AppStrings.context(getApplication()).resources
+                .getQuantityString(R.plurals.fm_import_done, result.entries, result.folderName, result.entries, size)
+        }
+        val notes = mutableListOf<String>()
+        if (result.skippedDirectories > 0) {
+            notes += AppStrings.context(getApplication()).resources.getQuantityString(
+                R.plurals.fm_import_skipped_folders,
+                result.skippedDirectories,
+                result.skippedDirectories,
+            )
+        }
+        if (result.skippedUnsafe > 0) {
+            notes += AppStrings.context(getApplication()).resources.getQuantityString(
+                R.plurals.fm_import_skipped_names,
+                result.skippedUnsafe,
+                result.skippedUnsafe,
+            )
+        }
+        if (result.truncated) notes += str(R.string.fm_import_truncated)
+        return (listOf(message) + notes).joinToString(" · ")
     }
 
     fun uploadToWorkspace(parentPath: String, uris: List<Uri>) {

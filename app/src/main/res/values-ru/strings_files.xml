@@ -31,4 +31,24 @@
         <item quantity="many">Загружено %1$d файлов</item>
         <item quantity="other">Загружено %1$d файла</item>
     </plurals>
+
+    <string name="fm_import_folder">Импортировать папку</string>
+    <plurals name="fm_import_done">
+        <item quantity="one">%1$s импортирована: %2$d файл (%3$s)</item>
+        <item quantity="other">%1$s импортирована: %2$d файлов (%3$s)</item>
+    </plurals>
+    <plurals name="fm_import_skipped_folders">
+        <item quantity="one">%1$d созданная папка пропущена</item>
+        <item quantity="other">%1$d созданных папок пропущено</item>
+    </plurals>
+    <plurals name="fm_import_skipped_names">
+        <item quantity="one">%1$d недопустимое имя пропущено</item>
+        <item quantity="other">%1$d недопустимых имён пропущено</item>
+    </plurals>
+    <string name="fm_import_truncated">остановлено по ограничению размера</string>
+    <plurals name="fm_import_cancelled">
+        <item quantity="one">Импорт остановлен, %1$d файл сохранён</item>
+        <item quantity="other">Импорт остановлен, %1$d файлов сохранено</item>
+    </plurals>
+    <string name="fm_import_progress">Импорт: %1$d файлов (%2$s)</string>
 </resources>

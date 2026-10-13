@@ -29,4 +29,24 @@
         <item quantity="one">%1$d file uploaded</item>
         <item quantity="other">%1$d files uploaded</item>
     </plurals>
+
+    <string name="fm_import_folder">Import folder</string>
+    <plurals name="fm_import_done">
+        <item quantity="one">%1$s imported: %2$d file (%3$s)</item>
+        <item quantity="other">%1$s imported: %2$d files (%3$s)</item>
+    </plurals>
+    <plurals name="fm_import_skipped_folders">
+        <item quantity="one">%1$d generated folder skipped</item>
+        <item quantity="other">%1$d generated folders skipped</item>
+    </plurals>
+    <plurals name="fm_import_skipped_names">
+        <item quantity="one">%1$d unusable name skipped</item>
+        <item quantity="other">%1$d unusable names skipped</item>
+    </plurals>
+    <string name="fm_import_truncated">stopped at the size limit</string>
+    <plurals name="fm_import_cancelled">
+        <item quantity="one">Import stopped, %1$d file kept</item>
+        <item quantity="other">Import stopped, %1$d files kept</item>
+    </plurals>
+    <string name="fm_import_progress">Importing: %1$d files (%2$s)</string>
 </resources>

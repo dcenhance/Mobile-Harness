@@ -29,4 +29,24 @@
         <item quantity="one">%1$d फ़ाइल अपलोड हुई</item>
         <item quantity="other">%1$d फ़ाइलें अपलोड हुईं</item>
     </plurals>
+
+    <string name="fm_import_folder">फ़ोल्डर आयात करें</string>
+    <plurals name="fm_import_done">
+        <item quantity="one">%1$s आयातित: %2$d फ़ाइल (%3$s)</item>
+        <item quantity="other">%1$s आयातित: %2$d फ़ाइलें (%3$s)</item>
+    </plurals>
+    <plurals name="fm_import_skipped_folders">
+        <item quantity="one">%1$d जनित फ़ोल्डर छोड़ा गया</item>
+        <item quantity="other">%1$d जनित फ़ोल्डर छोड़े गए</item>
+    </plurals>
+    <plurals name="fm_import_skipped_names">
+        <item quantity="one">%1$d अमान्य नाम छोड़ा गया</item>
+        <item quantity="other">%1$d अमान्य नाम छोड़े गए</item>
+    </plurals>
+    <string name="fm_import_truncated">आकार सीमा पर रोका गया</string>
+    <plurals name="fm_import_cancelled">
+        <item quantity="one">आयात रोका गया, %1$d फ़ाइल रखी गई</item>
+        <item quantity="other">आयात रोका गया, %1$d फ़ाइलें रखी गईं</item>
+    </plurals>
+    <string name="fm_import_progress">आयात हो रहा है: %1$d फ़ाइलें (%2$s)</string>
 </resources>

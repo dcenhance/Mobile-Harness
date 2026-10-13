@@ -111,6 +111,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -302,6 +303,7 @@ import com.jarves.mh.text.CodeLanguage
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Rule
 import com.jarves.mh.runtime.AgentGuidance
+import com.jarves.mh.runtime.FolderImport
 import com.jarves.mh.runtime.PromptOverlay
 import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.SmartToy
@@ -447,6 +449,8 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
             onRenameWorkspaceEntry = viewModel::renameWorkspaceEntry,
             onDeleteWorkspaceEntry = viewModel::deleteWorkspaceEntry,
             onUploadToWorkspace = viewModel::uploadToWorkspace,
+            onImportWorkspaceFolder = viewModel::importWorkspaceFolder,
+            onCancelFolderImport = viewModel::cancelFolderImport,
             onShareWorkspaceFile = viewModel::shareWorkspaceFile,
             onSaveWorkspaceFileCopy = viewModel::saveWorkspaceFileCopy,
             onOpenFile = viewModel::openFile,
@@ -4444,6 +4448,8 @@ private fun WorkspaceScreen(
     onRenameWorkspaceEntry: (String, String) -> Unit,
     onDeleteWorkspaceEntry: (String) -> Unit,
     onUploadToWorkspace: (String, List<Uri>) -> Unit,
+    onImportWorkspaceFolder: (String, Uri) -> Unit,
+    onCancelFolderImport: () -> Unit,
     onShareWorkspaceFile: (String) -> Unit,
     onSaveWorkspaceFileCopy: (String, Uri) -> Unit,
     onOpenFile: (WorkspaceEntry) -> Unit,
@@ -4528,6 +4534,15 @@ private fun WorkspaceScreen(
         onResult = { uris ->
             pendingUploadParent?.let { parent -> onUploadToWorkspace(parent, uris) }
             pendingUploadParent = null
+        },
+    )
+    var pendingImportParent by rememberSaveable { mutableStateOf<String?>(null) }
+    val folderImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+        onResult = { treeUri ->
+            val parent = pendingImportParent
+            if (treeUri != null && parent != null) onImportWorkspaceFolder(parent, treeUri)
+            pendingImportParent = null
         },
     )
     var pendingCopyPath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -4918,6 +4933,13 @@ private fun WorkspaceScreen(
                         pendingUploadParent = parent
                         uploadLauncher.launch(arrayOf("*/*"))
                     },
+                    onImportInto = { parent ->
+                        pendingImportParent = parent
+                        folderImportLauncher.launch(null)
+                    },
+                    importRunning = state.folderImportRunning,
+                    importProgress = state.folderImportProgress,
+                    onCancelImport = onCancelFolderImport,
                     onShareFile = onShareWorkspaceFile,
                     onSaveFileCopy = { path ->
                         pendingCopyPath = path
@@ -6165,6 +6187,10 @@ private fun FilesTab(
     onRenameEntry: (path: String, newName: String) -> Unit = { _, _ -> },
     onDeleteEntry: (path: String) -> Unit = {},
     onUploadInto: (parentPath: String) -> Unit = {},
+    onImportInto: (parentPath: String) -> Unit = {},
+    importRunning: Boolean = false,
+    importProgress: Pair<Int, Long>? = null,
+    onCancelImport: () -> Unit = {},
     onShareFile: (path: String) -> Unit = {},
     onSaveFileCopy: (path: String) -> Unit = {},
 ) {
@@ -6237,6 +6263,7 @@ private fun FilesTab(
                                     onNewFile = { rootMenuOpen = false; nameDialog = FileNameDialog.Create("", isDirectory = false) },
                                     onNewFolder = { rootMenuOpen = false; nameDialog = FileNameDialog.Create("", isDirectory = true) },
                                     onUpload = { rootMenuOpen = false; onUploadInto("") },
+                                    onImportFolder = { rootMenuOpen = false; onImportInto("") },
                                 )
                             }
                         }
@@ -6254,6 +6281,33 @@ private fun FilesTab(
                 }
             }
             Spacer(Modifier.height(12.dp))
+        }
+        if (importRunning) {
+            item(key = "folder-import-progress") {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stringResource(
+                                R.string.fm_import_progress,
+                                importProgress?.first ?: 0,
+                                FolderImport.formatBytes(importProgress?.second ?: 0L),
+                            ),
+                            Modifier.weight(1f),
+                            fontSize = 12.sp,
+                        )
+                        TextButton(onClick = onCancelImport) { Text(stringResource(R.string.cancel), fontSize = 11.sp) }
+                    }
+                }
+            }
         }
         if (suggestedProjectRoot != null) {
             item(key = "suggested-project-root") {
@@ -6362,6 +6416,7 @@ private fun FilesTab(
                                     onNewFile = { entryMenuOpen = false; nameDialog = FileNameDialog.Create(entry.path, isDirectory = false) },
                                     onNewFolder = { entryMenuOpen = false; nameDialog = FileNameDialog.Create(entry.path, isDirectory = true) },
                                     onUpload = { entryMenuOpen = false; onUploadInto(entry.path) },
+                                    onImportFolder = { entryMenuOpen = false; onImportInto(entry.path) },
                                 )
                             } else {
                                 DropdownMenuItem(
@@ -6488,7 +6543,12 @@ private sealed interface FileNameDialog {
 }
 
 @Composable
-private fun FolderActionItems(onNewFile: () -> Unit, onNewFolder: () -> Unit, onUpload: () -> Unit) {
+private fun FolderActionItems(
+    onNewFile: () -> Unit,
+    onNewFolder: () -> Unit,
+    onUpload: () -> Unit,
+    onImportFolder: () -> Unit,
+) {
     DropdownMenuItem(
         text = { Text(stringResource(R.string.fm_new_file)) },
         leadingIcon = { Icon(Icons.Default.NoteAdd, null) },
@@ -6503,6 +6563,11 @@ private fun FolderActionItems(onNewFile: () -> Unit, onNewFolder: () -> Unit, on
         text = { Text(stringResource(R.string.fm_upload_here)) },
         leadingIcon = { Icon(Icons.Default.Upload, null) },
         onClick = onUpload,
+    )
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.fm_import_folder)) },
+        leadingIcon = { Icon(Icons.Default.FolderOpen, null) },
+        onClick = onImportFolder,
     )
 }
 

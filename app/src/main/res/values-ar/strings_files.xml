@@ -33,4 +33,24 @@
         <item quantity="many">تم رفع %1$d ملفًا</item>
         <item quantity="other">تم رفع %1$d ملف</item>
     </plurals>
+
+    <string name="fm_import_folder">استيراد مجلد</string>
+    <plurals name="fm_import_done">
+        <item quantity="one">تم استيراد %1$s: %2$d ملف (%3$s)</item>
+        <item quantity="other">تم استيراد %1$s: %2$d ملفات (%3$s)</item>
+    </plurals>
+    <plurals name="fm_import_skipped_folders">
+        <item quantity="one">تم تخطي %1$d مجلد مُنشأ</item>
+        <item quantity="other">تم تخطي %1$d مجلدات مُنشأة</item>
+    </plurals>
+    <plurals name="fm_import_skipped_names">
+        <item quantity="one">تم تخطي %1$d اسم غير صالح</item>
+        <item quantity="other">تم تخطي %1$d أسماء غير صالحة</item>
+    </plurals>
+    <string name="fm_import_truncated">تم الإيقاف عند حد الحجم</string>
+    <plurals name="fm_import_cancelled">
+        <item quantity="one">تم إيقاف الاستيراد، بقي %1$d ملف</item>
+        <item quantity="other">تم إيقاف الاستيراد، بقيت %1$d ملفات</item>
+    </plurals>
+    <string name="fm_import_progress">جارٍ الاستيراد: %1$d ملفات (%2$s)</string>
 </resources>

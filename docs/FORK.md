@@ -248,6 +248,31 @@ and it is deliberately read-only:
 paging, clamp, `next_offset`, shutdown), and `AgentDeviceBridgeTest` pins the token shape, the wrapper's
 read-only surface and the prompt hint. A phone run is **not** part of this evidence.
 
+### 3.12 Importing a folder from the phone (1.0.7-dce.10)
+
+The file area could already take single files (`OpenMultipleDocuments`) and a project archive
+(`GetContent` + zip), but not a **directory**: picking files loses every subfolder, which is exactly what
+a real source tree needs. Measured before this change: `OpenDocumentTree`, `getTreeDocumentId`, `DocumentFile` → **zero** hits.
+
+- `runtime/FolderImport.kt` — the rules and the copy loop, with the Android layer behind a
+  `FolderSource` interface, so the same loop runs against a real directory in tests: build output, tool
+  caches and version-control data are skipped and counted, every path stays inside the destination (a
+  per-segment check for blank/`.`/`..`/separators/control characters), one unreadable file is counted and
+  the import continues, and there are hard limits (`20_000` files, `2 GiB`, depth `24`) that stop and
+  *say* they stopped rather than filling the phone. Names are sanitised and collisions follow the app's
+  existing `-2` suffix rule.
+- `runtime/SafFolderSource.kt` — the picked tree read through the platform's own `DocumentsContract`
+  (one projection query per directory, one stream per file). No helper dependency was added, and the
+  picked folder is never written to.
+- The file area gains **Import folder** beside *Upload here* (root menu and every folder's menu), a
+  progress row with a stop button, and a result message that names the file count, the size and what was
+  left out.
+
+`FolderImportTest` copies real trees on disk and checks the content byte for byte, plus the skip rules,
+the escape refusals (a `..` file, a `a/b` name, a NUL name, a blank name), the caps, the depth stop, the
+cancel path, a failing read, progress order and the naming rules. A phone run is **not** part of this
+evidence.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive

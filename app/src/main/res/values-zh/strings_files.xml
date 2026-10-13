@@ -28,4 +28,20 @@
     <plurals name="fm_uploaded">
         <item quantity="other">已上传 %1$d 个文件</item>
     </plurals>
+
+    <string name="fm_import_folder">导入文件夹</string>
+    <plurals name="fm_import_done">
+        <item quantity="other">%1$s 已导入：%2$d 个文件（%3$s）</item>
+    </plurals>
+    <plurals name="fm_import_skipped_folders">
+        <item quantity="other">%1$d 个生成目录已跳过</item>
+    </plurals>
+    <plurals name="fm_import_skipped_names">
+        <item quantity="other">%1$d 个不可用名称已跳过</item>
+    </plurals>
+    <string name="fm_import_truncated">已达大小上限而停止</string>
+    <plurals name="fm_import_cancelled">
+        <item quantity="other">导入已停止，保留 %1$d 个文件</item>
+    </plurals>
+    <string name="fm_import_progress">导入中：%1$d 个文件（%2$s）</string>
 </resources>
