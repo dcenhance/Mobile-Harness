@@ -348,6 +348,14 @@ class AppPreferences(private val context: Context) {
             .apply()
     }
 
+    /**
+     * Read-only device bridge for the coding agents. On by default: it exposes device facts and the
+     * launcher-app list to the app's own runtime, nothing else, and can be switched off here.
+     */
+    var deviceBridgeEnabled: Boolean
+        get() = preferences.getBoolean("device_bridge_enabled", true)
+        set(value) { preferences.edit().putBoolean("device_bridge_enabled", value).apply() }
+
     fun saveProjectChats(projectId: String, chats: List<ProjectChat>) {
         val projectDir = File(chatsDir, projectId).also { it.mkdirs() }
         val arr = JSONArray()

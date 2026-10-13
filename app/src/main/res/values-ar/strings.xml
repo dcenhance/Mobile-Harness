@@ -219,6 +219,13 @@
     <string name="chat_attach_files">إرفاق ملفات</string><string name="chat_take_photo">التقاط صورة</string><string name="chat_choose_files">اختيار ملفات</string><string name="chat_camera_unavailable">لا يتوفر تطبيق كاميرا</string><string name="chat_attachment_no_preview">لا معاينة</string>
     <string name="chat_take_screenshot">لقطة شاشة</string>
     <string name="guidance_title">إرشادات المشروع</string>
+    <string name="guidance_device_title">وصول الوكيل إلى الجهاز</string>
+    <string name="guidance_device_desc">قراءة فقط: إصدار Android وحجم الصفحة والتخزين والذاكرة وقائمة تطبيقات المشغّل، عبر الأمر mh-device في الطرفية.</string>
+    <string name="guidance_device_on">مُفعّل</string>
+    <string name="guidance_device_off">متوقف</string>
+    <string name="vm_device_bridge_on">وصول الوكيل إلى الجهاز مُفعّل</string>
+    <string name="vm_device_bridge_off">وصول الوكيل إلى الجهاز متوقف</string>
+    <string name="vm_device_bridge_needs_runtime">يبدأ وصول الجهاز بعد تثبيت بيئة التشغيل</string>
     <string name="guidance_desc">تُضاف إلى كل رسالة يرسلها هذا المشروع.</string>
     <string name="guidance_instructions_label">قواعد المشروع</string>
     <string name="guidance_instructions_hint">مثال: أبقِ أقل إصدار SDK عند 28، ولا تغيّر معرّف التطبيق</string>

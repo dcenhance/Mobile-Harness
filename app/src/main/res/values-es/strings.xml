@@ -213,6 +213,13 @@
     <string name="chat_attach_files">Adjuntar archivos</string><string name="chat_take_photo">Tomar foto</string><string name="chat_choose_files">Elegir archivos</string><string name="chat_camera_unavailable">No hay ninguna app de cámara disponible</string><string name="chat_attachment_no_preview">sin vista previa</string>
     <string name="chat_take_screenshot">Captura de pantalla</string>
     <string name="guidance_title">Guía del proyecto</string>
+    <string name="guidance_device_title">Acceso al dispositivo para agentes</string>
+    <string name="guidance_device_desc">Solo lectura: versión de Android, tamaño de página, almacenamiento, RAM y la lista de apps del lanzador, con el comando mh-device en la terminal.</string>
+    <string name="guidance_device_on">Activo</string>
+    <string name="guidance_device_off">Desactivado</string>
+    <string name="vm_device_bridge_on">El acceso al dispositivo para agentes está activado</string>
+    <string name="vm_device_bridge_off">El acceso al dispositivo para agentes está desactivado</string>
+    <string name="vm_device_bridge_needs_runtime">El acceso al dispositivo empieza cuando el entorno esté instalado</string>
     <string name="guidance_desc">Se añade a cada mensaje que envía este proyecto.</string>
     <string name="guidance_instructions_label">Reglas del proyecto</string>
     <string name="guidance_instructions_hint">p. ej. mantener el SDK mínimo en 28, nunca cambiar el id de la app</string>

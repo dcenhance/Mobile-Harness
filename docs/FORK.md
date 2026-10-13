@@ -221,6 +221,33 @@ only chat code blocks were highlighted, by `ui/MarkdownText.kt`).
   ordered/non-overlapping invariant over a mixed corpus) and 5 for the transformation (text unchanged,
   identity offset mapping, colours attached per kind, plain text and empty input).
 
+### 3.11 Read-only device facts for the agents (1.0.7-dce.9)
+
+DcentIDE could act on the device because it *is* the device UI: the same process knew the build, the
+storage and the app list. In Mobile Harness the agents are command-line programs inside the app's own
+rootfs, so they cannot ask Android anything — measured before this change, `Build.VERSION`, `StatFs` and
+`queryIntentActivities` had **zero** call sites reachable from the agent path. The bridge is the answer,
+and it is deliberately read-only:
+
+- `runtime/DeviceQueryServer.kt` — a small HTTP server on `127.0.0.1` with an ephemeral port, a per-run
+  32-hex token in the `X-MH-Token` header and a loopback peer check, so another app on the phone cannot
+  use it as a device-inventory oracle. Exactly two routes exist: `/device/info` and `/apps?offset=&limit=`
+  (limit clamped to 300). There is no write, install, launch or file route.
+- `runtime/AgentDeviceBridge.kt` — starts the server, writes a per-run token file (owner-readable only)
+  and a `mh-device` Python wrapper into the rootfs's `usr/bin`, so the command is on `PATH` inside the
+  runtime and uses only the standard library (no `curl` dependency). Both files are removed again when
+  the bridge stops. The facts come from `Build`, `StatFs`, `ActivityManager` and — for page size — the
+  same ELF measurement as §3.8.
+- The app list uses a `<queries>` entry for `MAIN`/`LAUNCHER` only, so the app never requests
+  `QUERY_ALL_PACKAGES` and never sees apps it has no launcher entry for.
+- The prompt carries a one-line `<device_access>` hint **only while the bridge runs**, and the workspace
+  guidance document gains a matching section; with the switch off, the command does not exist and no
+  agent is told about it.
+
+`DeviceQueryServerTest` drives the real socket over the loopback interface (status codes, token gate,
+paging, clamp, `next_offset`, shutdown), and `AgentDeviceBridgeTest` pins the token shape, the wrapper's
+read-only surface and the prompt hint. A phone run is **not** part of this evidence.
+
 ## 4. Deliberately not done here
 
 - **Project-wide text search**: it needs a bounded walker (file/byte ceilings, binary and sensitive

@@ -213,6 +213,13 @@
     <string name="chat_attach_files">附加文件</string><string name="chat_take_photo">拍照</string><string name="chat_choose_files">选择文件</string><string name="chat_camera_unavailable">没有可用的相机应用</string><string name="chat_attachment_no_preview">无预览</string>
     <string name="chat_take_screenshot">截屏</string>
     <string name="guidance_title">项目指引</string>
+    <string name="guidance_device_title">代理的设备访问</string>
+    <string name="guidance_device_desc">只读：Android 版本、页面大小、存储、内存以及启动器应用列表，通过终端里的 mh-device 命令。</string>
+    <string name="guidance_device_on">已启用</string>
+    <string name="guidance_device_off">已关闭</string>
+    <string name="vm_device_bridge_on">代理设备访问已开启</string>
+    <string name="vm_device_bridge_off">代理设备访问已关闭</string>
+    <string name="vm_device_bridge_needs_runtime">安装运行环境后才会开启设备访问</string>
     <string name="guidance_desc">本项目每条消息都会带上。</string>
     <string name="guidance_instructions_label">项目规则</string>
     <string name="guidance_instructions_hint">例如：最低 SDK 保持 28，绝不更改应用 ID</string>

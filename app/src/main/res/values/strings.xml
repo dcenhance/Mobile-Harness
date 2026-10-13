@@ -281,6 +281,13 @@
     <string name="chat_attach_files">Attach files</string><string name="chat_take_photo">Take photo</string><string name="chat_choose_files">Choose files</string><string name="chat_camera_unavailable">No camera app is available</string><string name="chat_attachment_no_preview">no preview</string>
     <string name="chat_take_screenshot">Screenshot</string>
     <string name="guidance_title">Project guidance</string>
+    <string name="guidance_device_title">Device access for agents</string>
+    <string name="guidance_device_desc">Read-only: Android version, page size, storage, RAM and the launcher-app list, through the mh-device command in the shell.</string>
+    <string name="guidance_device_on">Active</string>
+    <string name="guidance_device_off">Off</string>
+    <string name="vm_device_bridge_on">Device access for agents is on</string>
+    <string name="vm_device_bridge_off">Device access for agents is off</string>
+    <string name="vm_device_bridge_needs_runtime">Device access starts once the runtime is installed</string>
     <string name="guidance_desc">Goes into every prompt this project sends.</string>
     <string name="guidance_instructions_label">Project rules</string>
     <string name="guidance_instructions_hint">e.g. keep the minimum SDK at 28, never change the app id</string>

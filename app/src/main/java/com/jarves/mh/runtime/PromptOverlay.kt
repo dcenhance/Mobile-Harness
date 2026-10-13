@@ -47,8 +47,11 @@ object PromptOverlay {
      * The prompt for one turn: standing rules and working style first (a model reads them before the
      * request), then the request verbatim, then whatever the caller appends (attachments). With no
      * guidance the request is returned unchanged.
+     *
+     * [deviceAccessNote] is the one-line hint about the read-only device bridge; it is only passed while
+     * that bridge actually runs, so an agent is never told about a command that does not exist.
      */
-    fun compose(request: String, guidance: AgentGuidance): String {
+    fun compose(request: String, guidance: AgentGuidance, deviceAccessNote: String? = null): String {
         val effective = effective(guidance)
         val blocks = buildString {
             if (effective.instructions.isNotBlank()) {
@@ -61,6 +64,11 @@ object PromptOverlay {
                 appendLine(effective.personality)
                 appendLine("</working_style>")
             }
+            if (!deviceAccessNote.isNullOrBlank()) {
+                appendLine("<device_access>")
+                appendLine(deviceAccessNote.trim())
+                appendLine("</device_access>")
+            }
         }
         if (blocks.isBlank()) return request
         return blocks + "\n" + request
@@ -71,9 +79,9 @@ object PromptOverlay {
      * open it and a later agent turn can still find it. Null when both fields are empty (no file is
      * written then).
      */
-    fun workspaceDocument(guidance: AgentGuidance): String? {
+    fun workspaceDocument(guidance: AgentGuidance, deviceAccessNote: String? = null): String? {
         val effective = effective(guidance)
-        if (effective.isEmpty) return null
+        if (effective.isEmpty && deviceAccessNote.isNullOrBlank()) return null
         return buildString {
             appendLine("# Project guidance for coding agents")
             appendLine()
@@ -90,6 +98,12 @@ object PromptOverlay {
                 appendLine("## Working style")
                 appendLine()
                 appendLine(effective.personality)
+                appendLine()
+            }
+            if (!deviceAccessNote.isNullOrBlank()) {
+                appendLine("## Device access")
+                appendLine()
+                appendLine(deviceAccessNote.trim())
                 appendLine()
             }
         }

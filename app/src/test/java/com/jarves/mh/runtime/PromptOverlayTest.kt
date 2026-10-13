@@ -116,6 +116,41 @@ class PromptOverlayTest {
     }
 
     @Test
+    fun `the device hint only appears while the bridge runs`() {
+        val request = "Check the layout."
+        val note = "Read-only device facts: run mh-device info."
+        assertEquals(request, PromptOverlay.compose(request, AgentGuidance(), null))
+        val withNote = PromptOverlay.compose(request, AgentGuidance(), note)
+        assertEquals(
+            "<device_access>\n$note\n</device_access>\n\n$request",
+            withNote,
+        )
+        // A blank note is the same as none.
+        assertEquals(request, PromptOverlay.compose(request, AgentGuidance(), "   "))
+    }
+
+    @Test
+    fun `the device hint follows the rules and stays before the request`() {
+        val composed = PromptOverlay.compose(
+            "Do the thing.",
+            AgentGuidance(instructions = "Rule one."),
+            "run mh-device apps",
+        )
+        assertTrue(composed.indexOf("<project_instructions>") < composed.indexOf("<device_access>"))
+        assertTrue(composed.indexOf("<device_access>") < composed.indexOf("Do the thing."))
+        assertTrue(composed.endsWith("Do the thing."))
+    }
+
+    @Test
+    fun `the workspace document mentions device access even without guidance`() {
+        val document = PromptOverlay.workspaceDocument(AgentGuidance(), "run mh-device info") ?: error("expected a document")
+        assertTrue(document.contains("## Device access"))
+        assertTrue(document.contains("run mh-device info"))
+        assertNull(PromptOverlay.workspaceDocument(AgentGuidance(), null))
+        assertNull(PromptOverlay.workspaceDocument(AgentGuidance(), "  "))
+    }
+
+    @Test
     fun `no workspace document is written without guidance`() {
         assertNull(PromptOverlay.workspaceDocument(AgentGuidance()))
         assertNull(PromptOverlay.workspaceDocument(AgentGuidance(instructions = "  ")))

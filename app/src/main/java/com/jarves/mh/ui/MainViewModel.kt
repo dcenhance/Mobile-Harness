@@ -60,6 +60,7 @@ import com.jarves.mh.runtime.AntigravityAuthState
 import com.jarves.mh.runtime.AntigravityAuthStatus
 import com.jarves.mh.runtime.AntigravityRuntimeBridge
 import com.jarves.mh.runtime.NativeSpawnProcess
+import com.jarves.mh.runtime.AgentDeviceBridge
 import com.jarves.mh.runtime.PromptOverlay
 import com.jarves.mh.runtime.AgentGuidance
 import com.jarves.mh.runtime.RuntimeInstallProgress
@@ -327,6 +328,10 @@ data class AppUiState(
 
     /** Standing project rules and working style, as the project guidance screen holds them. */
     val guidance: AgentGuidance = AgentGuidance(),
+
+    /** True while the read-only device bridge answers the agents' `mh-device` command. */
+    val deviceBridgeEnabled: Boolean = true,
+    val deviceBridgeRunning: Boolean = false,
     val workspaceFiles: List<WorkspaceEntry> = emptyList(),
     val androidProjectDetected: Boolean = false,
     val filesLoading: Boolean = false,
@@ -431,6 +436,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val vault = ApiKeyVault(application)
     private val preferences = AppPreferences(application)
+
+    /** Read-only device bridge for the coding agents; started while a project is open and enabled. */
+    private var deviceBridge: AgentDeviceBridge? = null
     /** Cancels the pending project scan when the query changes again. */
     private var workspaceSearchJob: Job? = null
     private val claudeRuntime = ClaudeRuntimeBridge(application) { profile -> vault.get(profile.kind.name) }
@@ -500,6 +508,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppUiState(
             startupMessage = str(R.string.vm_checking_device),
             onboardingComplete = preferences.onboardingComplete,
+            deviceBridgeEnabled = preferences.deviceBridgeEnabled,
             backgroundSetupComplete = preferences.backgroundSetupComplete,
             initialLanguageSelected = preferences.initialLanguageSelected,
             agentKind = initialAgentKind,
@@ -2970,6 +2979,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openProject(project: Project) {
         val current = _state.value
+        startDeviceBridgeIfEnabled()
         if (current.activeProject?.id == project.id) {
             _state.update {
                 it.copy(
@@ -3077,6 +3087,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (active != null) {
+            stopDeviceBridge()
             val chats = preferences.loadProjectChats(active.id)
             val userMessages = chats.sumOf { preferences.loadMessages(active.id, it.id).count { m -> m.fromUser } }
             val workspaceDir = File(getApplication<Application>().filesDir, "workspaces/${active.id}")
@@ -4760,12 +4771,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 toastMessage = if (normalized.isEmpty) str(R.string.vm_guidance_cleared) else str(R.string.vm_guidance_saved),
             )
         }
+        writeGuidanceDocument()
+    }
+
+    /**
+     * Starts the read-only device bridge while the user keeps it enabled and a runtime exists. Nothing is
+     * exposed without it; a missing runtime is simply not started.
+     */
+    private fun startDeviceBridgeIfEnabled() {
+        if (!preferences.deviceBridgeEnabled) return
+        val bridge = deviceBridge ?: AgentDeviceBridge(getApplication<Application>()).also { deviceBridge = it }
+        if (bridge.isRunning) return
+        val started = bridge.start()
+        _state.update { it.copy(deviceBridgeRunning = started) }
+        if (started) writeGuidanceDocument()
+    }
+
+    private fun stopDeviceBridge() {
+        deviceBridge?.stop()
+        _state.update { it.copy(deviceBridgeRunning = false) }
+        writeGuidanceDocument()
+    }
+
+    /** Stores the setting and applies it at once: on = start (if a runtime exists), off = stop. */
+    fun setDeviceBridgeEnabled(enabled: Boolean) {
+        preferences.deviceBridgeEnabled = enabled
+        if (enabled) {
+            startDeviceBridgeIfEnabled()
+            val running = _state.value.deviceBridgeRunning
+            _state.update {
+                it.copy(toastMessage = str(if (running) R.string.vm_device_bridge_on else R.string.vm_device_bridge_needs_runtime))
+            }
+        } else {
+            stopDeviceBridge()
+            _state.update { it.copy(toastMessage = str(R.string.vm_device_bridge_off)) }
+        }
+    }
+
+    /** The device hint for a prompt, only while the bridge really runs. */
+    private fun deviceAccessNote(): String? =
+        if (deviceBridge?.isRunning == true) AgentDeviceBridge.promptNote() else null
+
+    /** Writes (or removes) the workspace mirror of the guidance, including the device section. */
+    private fun writeGuidanceDocument() {
+        val project = _state.value.activeProject ?: return
+        val guidance = _state.value.guidance
+        val note = deviceAccessNote()
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching {
                     val root = projectWorkspaceRoot(project)
                     val target = File(root, PromptOverlay.WORKSPACE_DOCUMENT_PATH)
-                    val document = PromptOverlay.workspaceDocument(normalized)
+                    val document = PromptOverlay.workspaceDocument(guidance, note)
                     if (document == null) {
                         if (target.isFile) target.delete()
                     } else {
@@ -4956,7 +5013,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val history = state.value.messages // includes all messages up to now
         // Standing project rules and working style are prepended here, once, for every agent: the
         // bridges then add history and their own context to this already composed prompt.
-        val basePrompt = PromptOverlay.compose(requestText, state.value.guidance)
+        val basePrompt = PromptOverlay.compose(requestText, state.value.guidance, deviceAccessNote())
         val runtimePrompt = if (attachments.isEmpty()) basePrompt else buildString {
             appendLine(basePrompt)
             appendLine()

@@ -13,6 +13,15 @@
 
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
+    <queries>
+        <!-- Launcher apps only: this is what the read-only mh-device bridge lists for the coding
+             agents. No QUERY_ALL_PACKAGES, so the app never sees the rest of the device. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

@@ -213,6 +213,13 @@
     <string name="chat_attach_files">Прикрепить файлы</string><string name="chat_take_photo">Сделать фото</string><string name="chat_choose_files">Выбрать файлы</string><string name="chat_camera_unavailable">Нет доступного приложения камеры</string><string name="chat_attachment_no_preview">без предпросмотра</string>
     <string name="chat_take_screenshot">Снимок экрана</string>
     <string name="guidance_title">Руководство проекта</string>
+    <string name="guidance_device_title">Доступ к устройству для агентов</string>
+    <string name="guidance_device_desc">Только чтение: версия Android, размер страницы, хранилище, ОЗУ и список приложений запуска через команду mh-device в терминале.</string>
+    <string name="guidance_device_on">Активно</string>
+    <string name="guidance_device_off">Выключено</string>
+    <string name="vm_device_bridge_on">Доступ к устройству для агентов включён</string>
+    <string name="vm_device_bridge_off">Доступ к устройству для агентов выключен</string>
+    <string name="vm_device_bridge_needs_runtime">Доступ к устройству начнётся после установки среды</string>
     <string name="guidance_desc">Добавляется к каждому сообщению этого проекта.</string>
     <string name="guidance_instructions_label">Правила проекта</string>
     <string name="guidance_instructions_hint">напр. minSdk 28, идентификатор приложения не менять</string>

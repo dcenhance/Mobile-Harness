@@ -168,6 +168,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -431,6 +432,9 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
             onScreenCaptureResult = viewModel::handleScreenCaptureResult,
             guidance = state.guidance,
             onSaveGuidance = viewModel::saveGuidance,
+            deviceBridgeEnabled = state.deviceBridgeEnabled,
+            deviceBridgeRunning = state.deviceBridgeRunning,
+            onToggleDeviceBridge = viewModel::setDeviceBridgeEnabled,
             onBack = viewModel::closeProject,
             onSend = viewModel::sendPrompt,
             onStop = viewModel::stopTask,
@@ -4475,6 +4479,9 @@ private fun WorkspaceScreen(
     onScreenCaptureResult: (Int, Intent?) -> Unit,
     guidance: AgentGuidance,
     onSaveGuidance: (String, String) -> Unit,
+    deviceBridgeEnabled: Boolean,
+    deviceBridgeRunning: Boolean,
+    onToggleDeviceBridge: (Boolean) -> Unit,
     onBuildAndRunAndroid: () -> Unit,
     onAndroidAction: (AndroidAction) -> Unit,
     onRefreshAndroidDashboard: () -> Unit,
@@ -4954,6 +4961,9 @@ private fun WorkspaceScreen(
                 // The preview uses the last request as its example, so the shown text is a real one
                 // rather than an invented sample.
                 sampleRequest = state.currentTaskRequest ?: stringResource(R.string.guidance_preview_sample),
+                deviceBridgeEnabled = deviceBridgeEnabled,
+                deviceBridgeRunning = deviceBridgeRunning,
+                onToggleDeviceBridge = onToggleDeviceBridge,
                 onDismiss = { guidanceOpen = false },
                 onSave = { instructions, personality ->
                     onSaveGuidance(instructions, personality)
@@ -4973,6 +4983,9 @@ private fun WorkspaceScreen(
 private fun GuidanceDialog(
     guidance: AgentGuidance,
     sampleRequest: String,
+    deviceBridgeEnabled: Boolean,
+    deviceBridgeRunning: Boolean,
+    onToggleDeviceBridge: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit,
 ) {
@@ -5023,6 +5036,23 @@ private fun GuidanceDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(stringResource(R.string.guidance_preview_label), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.guidance_device_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(
+                            stringResource(R.string.guidance_device_desc),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            if (deviceBridgeRunning) stringResource(R.string.guidance_device_on)
+                            else stringResource(R.string.guidance_device_off),
+                            fontSize = 10.sp,
+                            color = if (deviceBridgeRunning) PocketGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = deviceBridgeEnabled, onCheckedChange = onToggleDeviceBridge)
+                }
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
                     Text(
                         preview,

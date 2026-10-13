@@ -213,6 +213,13 @@
     <string name="chat_attach_files">फ़ाइलें संलग्न करें</string><string name="chat_take_photo">फ़ोटो लें</string><string name="chat_choose_files">फ़ाइलें चुनें</string><string name="chat_camera_unavailable">कोई कैमरा ऐप उपलब्ध नहीं है</string><string name="chat_attachment_no_preview">पूर्वावलोकन नहीं</string>
     <string name="chat_take_screenshot">स्क्रीनशॉट</string>
     <string name="guidance_title">प्रोजेक्ट मार्गदर्शन</string>
+    <string name="guidance_device_title">एजेंट के लिए डिवाइस एक्सेस</string>
+    <string name="guidance_device_desc">केवल पढ़ने योग्य: Android संस्करण, पेज आकार, स्टोरेज, RAM और लॉन्चर ऐप सूची, टर्मिनल में mh-device कमांड से।</string>
+    <string name="guidance_device_on">सक्रिय</string>
+    <string name="guidance_device_off">बंद</string>
+    <string name="vm_device_bridge_on">एजेंट डिवाइस एक्सेस चालू है</string>
+    <string name="vm_device_bridge_off">एजेंट डिवाइस एक्सेस बंद है</string>
+    <string name="vm_device_bridge_needs_runtime">रनटाइम इंस्टॉल होने पर डिवाइस एक्सेस शुरू होगा</string>
     <string name="guidance_desc">इस प्रोजेक्ट के हर संदेश में जाता है।</string>
     <string name="guidance_instructions_label">प्रोजेक्ट नियम</string>
     <string name="guidance_instructions_hint">उदा. न्यूनतम SDK 28 रखें, ऐप आईडी कभी न बदलें</string>
