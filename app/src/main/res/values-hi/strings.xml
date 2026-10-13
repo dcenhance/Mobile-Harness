@@ -252,5 +252,34 @@
 <string name="android_estimated_remaining">लगभग %1$s शेष</string><string name="android_finishing_build">बिल्ड पूरा हो रहा है…</string><string name="android_estimating_build">बिल्ड समय सीखा जा रहा है…</string><string name="android_usually_takes">आमतौर पर लगभग %1$s</string>
 <string name="diagnostics_title">डेवलपर डायग्नोस्टिक्स</string><string name="diagnostics_subtitle">परफ़ॉर्मेंस, प्रोसेस और रनटाइम स्टोरेज</string><string name="diagnostics_refresh">डायग्नोस्टिक्स रीफ़्रेश करें</string><string name="diagnostics_memory">मेमोरी</string><string name="diagnostics_app_memory">ऐप मेमोरी</string><string name="diagnostics_java_heap">Java हीप</string><string name="diagnostics_processes">सक्रिय प्रोसेस</string><string name="diagnostics_no_processes">कोई डेवलपमेंट प्रोसेस नहीं चल रही</string><string name="diagnostics_stop_inactive">निष्क्रिय प्रोसेस रोकें</string><string name="diagnostics_buffers">ऐप बफ़र</string><string name="diagnostics_messages">चैट संदेश</string><string name="diagnostics_live_activity">लाइव गतिविधि पंक्तियाँ</string><string name="diagnostics_terminal_buffer">टर्मिनल टेक्स्ट</string><string name="diagnostics_build_log">बिल्ड लॉग</string><string name="diagnostics_logcat_lines">लॉग पंक्तियाँ</string><string name="diagnostics_file_entries">लोड की गई फ़ाइलें</string><string name="diagnostics_runtime_cache">रनटाइम आउटपुट कैश</string><string name="diagnostics_cached_output">कैश किया आउटपुट</string><string name="diagnostics_clear_cache">अस्थायी आउटपुट साफ़ करें</string><string name="diagnostics_cache_disabled">सक्रिय काम पूरा होने के बाद उपलब्ध।</string><string name="diagnostics_recent_exit">हाल की ऐप समस्या</string><string name="diagnostics_no_recent_exit">कोई हाल का क्रैश या ANR नहीं</string><string name="diagnostics_inactive_stopped">निष्क्रिय प्रोसेस रोक दी गईं</string><string name="diagnostics_cache_busy">साफ़ करने से पहले सक्रिय काम पूरा होने दें</string><string name="diagnostics_cache_cleared">अस्थायी आउटपुट साफ़ किया गया</string>
     <string name="chat_find_in_conversation">बातचीत में खोजें</string><string name="chat_find_placeholder">संदेश खोजें</string><string name="chat_find_no_matches">कोई परिणाम नहीं</string><string name="chat_find_truncated">%1$d+ परिणाम</string><string name="chat_find_count">%1$d/%2$d</string><string name="chat_find_close">खोज बंद करें</string><string name="chat_message_actions">संदेश क्रियाएँ</string><string name="chat_copy_message">संदेश कॉपी करें</string><string name="chat_quote_message">उत्तर में उद्धृत करें</string><string name="chat_message_copied">संदेश कॉपी हो गया</string><string name="chat_show_all_lines">सभी दिखाएँ · %1$d पंक्तियाँ</string><string name="chat_collapse_reply">उत्तर समेटें</string>
-    <string name="search_in_files">फ़ाइलों में खोजें</string><string name="search_project_placeholder">प्रोजेक्ट टेक्स्ट खोजें</string><string name="search_hint">शाब्दिक, केस-असंवेदनशील। बनी हुई फ़ोल्डर छोड़ दी जाती हैं।</string><string name="search_running">खोज जारी…</string><string name="search_no_matches">कोई परिणाम नहीं</string><string name="search_match_count">%2$d फ़ाइलों में %1$d परिणाम</string><string name="search_scanned">%1$d / %2$d फ़ाइलें स्कैन हुईं</string><string name="search_truncated">परिणाम सीमित</string><string name="search_held_back">%1$d फ़ोल्डर छोड़े गए</string><string name="search_line_column">पंक्ति %1$d:%2$d</string><string name="search_close">खोज बंद करें</string><string name="search_clear">खोज साफ़ करें</string>
+    <string name="search_in_files">फ़ाइलों में खोजें</string><string name="search_project_placeholder">प्रोजेक्ट टेक्स्ट खोजें</string><string name="search_hint">जनित फ़ोल्डर छोड़े जाते हैं। विकल्प खोज सीमित करते हैं।</string><string name="search_running">खोज जारी…</string><string name="search_no_matches">कोई परिणाम नहीं</string><string name="search_match_count">%2$d फ़ाइलों में %1$d परिणाम</string><string name="search_scanned">%1$d / %2$d फ़ाइलें स्कैन हुईं</string><string name="search_truncated">परिणाम सीमित</string><string name="search_held_back">%1$d फ़ोल्डर छोड़े गए</string><string name="search_line_column">पंक्ति %1$d:%2$d</string><string name="search_close">खोज बंद करें</string><string name="search_clear">खोज साफ़ करें</string>
+
+    <string name="search_options_case">केस मायने रखता है</string>
+    <string name="search_options_word">पूरे शब्द</string>
+    <string name="search_options_regex">पैटर्न</string>
+    <string name="search_invalid_pattern">यह पैटर्न मान्य नहीं है</string>
+    <string name="replace_field_hint">इससे बदलें</string>
+    <string name="replace_preview_action">बदलाव देखें</string>
+    <string name="replace_apply">सब बदलें</string>
+    <string name="replace_summary">%2$d फ़ाइलों में %1$d बदलाव</string>
+    <string name="replace_no_matches">बदलने के लिए कुछ नहीं</string>
+    <string name="replace_bad_replacement">यह बदलाव पैटर्न से मेल नहीं खाता</string>
+    <string name="replace_invalid_pattern">यह पैटर्न मान्य नहीं है</string>
+    <string name="replace_failed">बदलाव विफल रहा</string>
+    <string name="replace_undo">पूर्ववत करें</string>
+    <string name="replace_skipped">%1$d फ़ाइलें छोड़ी गईं (बाइनरी या गैर-पाठ)</string>
+    <plurals name="replace_applied">
+        <item quantity="one">%1$d फ़ाइल बदली · %2$d बदलाव</item>
+        <item quantity="other">%1$d फ़ाइलें बदलीं · %2$d बदलाव</item>
+    </plurals>
+    <plurals name="replace_undone">
+        <item quantity="one">%1$d फ़ाइल का बदलाव पूर्ववत</item>
+        <item quantity="other">%1$d फ़ाइलों के बदलाव पूर्ववत</item>
+    </plurals>
+
+    <string name="replace_done">हो गया</string>
+    <plurals name="replace_long_lines">
+        <item quantity="one">%1$d बहुत लंबी पंक्ति अपरिवर्तित</item>
+        <item quantity="other">%1$d बहुत लंबी पंक्तियाँ अपरिवर्तित</item>
+    </plurals>
 </resources>

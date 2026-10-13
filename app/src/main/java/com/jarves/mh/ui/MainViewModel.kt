@@ -66,6 +66,11 @@ import com.jarves.mh.runtime.FolderImportResult
 import com.jarves.mh.runtime.FolderImporter
 import com.jarves.mh.runtime.SafFolderSource
 import com.jarves.mh.runtime.PromptOverlay
+import com.jarves.mh.runtime.ReplaceOutcome
+import com.jarves.mh.runtime.ReplacePlan
+import com.jarves.mh.runtime.WorkspaceReplace
+import com.jarves.mh.text.SearchOptions
+import com.jarves.mh.text.SearchQuery
 import com.jarves.mh.runtime.AgentGuidance
 import com.jarves.mh.runtime.RuntimeInstallProgress
 import com.jarves.mh.runtime.ScreenCaptureResult
@@ -370,6 +375,15 @@ data class AppUiState(
     val workspaceSearchQuery: String = "",
     val workspaceSearch: WorkspaceSearchResult = WorkspaceSearchResult.idle(),
     val workspaceSearchRunning: Boolean = false,
+
+    /** How the project-wide query is read: literal or pattern, case, whole words. */
+    val workspaceSearchOptions: SearchOptions = SearchOptions(),
+    val workspaceSearchReplacement: String = "",
+
+    /** A replace that has been planned but not written, with the outcome of the last applied one. */
+    val replacePlan: ReplacePlan? = null,
+    val replaceApplied: ReplaceOutcome? = null,
+    val replaceRunning: Boolean = false,
     val isRunning: Boolean = false,
     val queuedFollowUps: List<QueuedFollowUp> = emptyList(),
     val activeSessionId: String? = null,
@@ -4076,6 +4090,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             workspaceSearchQuery = "",
             workspaceSearch = WorkspaceSearchResult.idle(),
             workspaceSearchRunning = false,
+            workspaceSearchReplacement = "",
+            replacePlan = null,
+            replaceApplied = null,
         )
     }
 
@@ -4085,8 +4102,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setWorkspaceSearchQuery(query: String) {
         _state.update { it.copy(workspaceSearchQuery = query) }
+        runWorkspaceSearch(query)
+    }
+
+    /** Changes how the query is read and re-runs it, so the list and a replace agree. */
+    fun setWorkspaceSearchOptions(options: SearchOptions) {
+        _state.update { it.copy(workspaceSearchOptions = options) }
+        runWorkspaceSearch(_state.value.workspaceSearchQuery)
+    }
+
+    fun setWorkspaceSearchReplacement(text: String) {
+        _state.update { it.copy(workspaceSearchReplacement = text) }
+    }
+
+    private fun runWorkspaceSearch(query: String) {
         workspaceSearchJob?.cancel()
         val project = _state.value.activeProject ?: return
+        val options = _state.value.workspaceSearchOptions
         if (query.isBlank()) {
             _state.update { it.copy(workspaceSearch = WorkspaceSearchResult.idle(), workspaceSearchRunning = false) }
             return
@@ -4095,7 +4127,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             delay(WORKSPACE_SEARCH_DEBOUNCE_MILLIS)
             _state.update { it.copy(workspaceSearchRunning = true) }
             val result = withContext(Dispatchers.IO) {
-                runCatching { WorkspaceTextSearch.search(projectWorkspaceRoot(project), query) }
+                runCatching { WorkspaceTextSearch.search(projectWorkspaceRoot(project), query, options = options) }
                     .getOrElse { WorkspaceSearchResult.idle(query.trim()) }
             }
             // Only publish when the query and the project are still the ones that ran.
@@ -4103,6 +4135,112 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(workspaceSearch = result, workspaceSearchRunning = false) }
             }
         }
+    }
+
+    /**
+     * Plans a project-wide replace and writes nothing: the user sees the file count, the replacement
+     * count and the first changed lines before anything is touched. The plan uses the same compiled query
+     * as the list above it, so what was found is what would be rewritten.
+     */
+    fun previewWorkspaceReplace() {
+        val project = _state.value.activeProject ?: return
+        if (_state.value.replaceRunning) return
+        val query = SearchQuery.compile(_state.value.workspaceSearchQuery.trim(), _state.value.workspaceSearchOptions)
+        if (query == null) {
+            _state.update { it.copy(toastMessage = str(R.string.replace_invalid_pattern)) }
+            return
+        }
+        val replacement = _state.value.workspaceSearchReplacement
+        _state.update { it.copy(replaceRunning = true, replacePlan = null, replaceApplied = null) }
+        viewModelScope.launch {
+            val plan = withContext(Dispatchers.IO) {
+                runCatching { WorkspaceReplace.plan(projectWorkspaceRoot(project), query, replacement) }.getOrNull()
+            }
+            if (_state.value.activeProject?.id != project.id) return@launch
+            _state.update {
+                it.copy(
+                    replaceRunning = false,
+                    replacePlan = plan,
+                    toastMessage = when {
+                        plan == null -> str(R.string.replace_failed)
+                        plan.templateRejected -> str(R.string.replace_bad_replacement)
+                        plan.isEmpty -> str(R.string.replace_no_matches)
+                        else -> null
+                    } ?: it.toastMessage,
+                )
+            }
+        }
+    }
+
+    /** Writes a planned replace. Only a plan that was fully computed ever reaches this. */
+    fun applyWorkspaceReplace() {
+        val project = _state.value.activeProject ?: return
+        val plan = _state.value.replacePlan ?: return
+        if (_state.value.replaceRunning || plan.isEmpty || plan.templateRejected) return
+        _state.update { it.copy(replaceRunning = true) }
+        viewModelScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { WorkspaceReplace.apply(projectWorkspaceRoot(project), plan) }.getOrNull()
+            }
+            if (_state.value.activeProject?.id != project.id) return@launch
+            _state.update {
+                it.copy(
+                    replaceRunning = false,
+                    // The plan stays on hand: it holds the previous bytes, so undo needs it.
+                    replacePlan = if (outcome == null) null else plan,
+                    replaceApplied = outcome,
+                    toastMessage = outcome?.let { result ->
+                        AppStrings.context(getApplication()).resources.getQuantityString(
+                            R.plurals.replace_applied,
+                            result.filesWritten,
+                            result.filesWritten,
+                            result.replacements,
+                        )
+                    } ?: str(R.string.replace_failed),
+                )
+            }
+            if (outcome != null) {
+                runWorkspaceSearch(_state.value.workspaceSearchQuery)
+                refreshProjectFiles()
+            }
+        }
+    }
+
+    /** Puts the previous content back for the last applied replace. */
+    fun undoWorkspaceReplace() {
+        val project = _state.value.activeProject ?: return
+        val plan = _state.value.replacePlan ?: return
+        if (_state.value.replaceRunning) return
+        _state.update { it.copy(replaceRunning = true) }
+        viewModelScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { WorkspaceReplace.undo(projectWorkspaceRoot(project), plan) }.getOrNull()
+            }
+            if (_state.value.activeProject?.id != project.id) return@launch
+            _state.update {
+                it.copy(
+                    replaceRunning = false,
+                    replacePlan = null,
+                    replaceApplied = null,
+                    toastMessage = outcome?.let { result ->
+                        AppStrings.context(getApplication()).resources.getQuantityString(
+                            R.plurals.replace_undone,
+                            result.filesWritten,
+                            result.filesWritten,
+                        )
+                    } ?: str(R.string.replace_failed),
+                )
+            }
+            if (outcome != null) {
+                runWorkspaceSearch(_state.value.workspaceSearchQuery)
+                refreshProjectFiles()
+            }
+        }
+    }
+
+    /** Drops a plan without writing anything. */
+    fun discardWorkspaceReplace() {
+        _state.update { it.copy(replacePlan = null, replaceApplied = null) }
     }
 
     /** Opens a hit in the file viewer at its line and column. */

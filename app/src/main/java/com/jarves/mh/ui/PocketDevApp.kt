@@ -169,6 +169,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -305,6 +306,9 @@ import androidx.compose.material.icons.filled.Rule
 import com.jarves.mh.runtime.AgentGuidance
 import com.jarves.mh.runtime.FolderImport
 import com.jarves.mh.runtime.PromptOverlay
+import com.jarves.mh.runtime.ReplaceOutcome
+import com.jarves.mh.runtime.ReplacePlan
+import com.jarves.mh.text.SearchOptions
 import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Terminal
@@ -506,6 +510,12 @@ fun PocketDevApp(viewModel: MainViewModel = viewModel()) {
             onWorkspaceSearchQuery = viewModel::setWorkspaceSearchQuery,
             onCloseWorkspaceSearch = viewModel::closeWorkspaceSearch,
             onOpenWorkspaceSearchMatch = viewModel::openWorkspaceSearchMatch,
+            onWorkspaceSearchOptions = viewModel::setWorkspaceSearchOptions,
+            onWorkspaceSearchReplacement = viewModel::setWorkspaceSearchReplacement,
+            onPreviewWorkspaceReplace = viewModel::previewWorkspaceReplace,
+            onApplyWorkspaceReplace = viewModel::applyWorkspaceReplace,
+            onUndoWorkspaceReplace = viewModel::undoWorkspaceReplace,
+            onDiscardWorkspaceReplace = viewModel::discardWorkspaceReplace,
         )
         else -> RootScreenHost(state, viewModel, projectsListState)
     }
@@ -4512,6 +4522,12 @@ private fun WorkspaceScreen(
     onWorkspaceSearchQuery: (String) -> Unit,
     onCloseWorkspaceSearch: () -> Unit,
     onOpenWorkspaceSearchMatch: (WorkspaceSearchMatch) -> Unit,
+    onWorkspaceSearchOptions: (SearchOptions) -> Unit,
+    onWorkspaceSearchReplacement: (String) -> Unit,
+    onPreviewWorkspaceReplace: () -> Unit,
+    onApplyWorkspaceReplace: () -> Unit,
+    onUndoWorkspaceReplace: () -> Unit,
+    onDiscardWorkspaceReplace: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
@@ -4691,7 +4707,18 @@ private fun WorkspaceScreen(
             query = state.workspaceSearchQuery,
             result = state.workspaceSearch,
             running = state.workspaceSearchRunning,
+            options = state.workspaceSearchOptions,
+            replacement = state.workspaceSearchReplacement,
+            replacePlan = state.replacePlan,
+            replaceApplied = state.replaceApplied,
+            replaceRunning = state.replaceRunning,
             onQueryChange = onWorkspaceSearchQuery,
+            onOptionsChange = onWorkspaceSearchOptions,
+            onReplacementChange = onWorkspaceSearchReplacement,
+            onPreviewReplace = onPreviewWorkspaceReplace,
+            onApplyReplace = onApplyWorkspaceReplace,
+            onUndoReplace = onUndoWorkspaceReplace,
+            onDiscardReplace = onDiscardWorkspaceReplace,
             onOpenMatch = onOpenWorkspaceSearchMatch,
             onClose = onCloseWorkspaceSearch,
         )
@@ -7598,7 +7625,18 @@ private fun FindInFilesScreen(
     query: String,
     result: WorkspaceSearchResult,
     running: Boolean,
+    options: SearchOptions,
+    replacement: String,
+    replacePlan: ReplacePlan?,
+    replaceApplied: ReplaceOutcome?,
+    replaceRunning: Boolean,
     onQueryChange: (String) -> Unit,
+    onOptionsChange: (SearchOptions) -> Unit,
+    onReplacementChange: (String) -> Unit,
+    onPreviewReplace: () -> Unit,
+    onApplyReplace: () -> Unit,
+    onUndoReplace: () -> Unit,
+    onDiscardReplace: () -> Unit,
     onOpenMatch: (WorkspaceSearchMatch) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -7606,6 +7644,7 @@ private fun FindInFilesScreen(
     // One honest status line: what was found, how much was read, and what a ceiling cut short.
     val status = when {
         query.isBlank() -> stringResource(R.string.search_hint)
+        result.invalidQuery -> stringResource(R.string.search_invalid_pattern)
         running -> stringResource(R.string.search_running)
         else -> buildList {
             if (result.matches.isEmpty()) {
@@ -7664,6 +7703,62 @@ private fun FindInFilesScreen(
                     }
                 },
             )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FilterChip(
+                    selected = options.caseSensitive,
+                    onClick = { onOptionsChange(options.copy(caseSensitive = !options.caseSensitive)) },
+                    label = { Text(stringResource(R.string.search_options_case), fontSize = 11.sp) },
+                )
+                FilterChip(
+                    selected = options.wholeWord,
+                    onClick = { onOptionsChange(options.copy(wholeWord = !options.wholeWord)) },
+                    label = { Text(stringResource(R.string.search_options_word), fontSize = 11.sp) },
+                )
+                FilterChip(
+                    selected = options.regex,
+                    onClick = { onOptionsChange(options.copy(regex = !options.regex)) },
+                    label = { Text(stringResource(R.string.search_options_regex), fontSize = 11.sp) },
+                )
+            }
+            if (query.isNotBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = replacement,
+                        onValueChange = onReplacementChange,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                        placeholder = { Text(stringResource(R.string.replace_field_hint), fontSize = 13.sp) },
+                    )
+                    OutlinedButton(
+                        onClick = onPreviewReplace,
+                        enabled = !replaceRunning && !result.invalidQuery,
+                    ) { Text(stringResource(R.string.replace_preview_action), fontSize = 11.sp) }
+                }
+            }
+            if (replaceApplied != null) {
+                ReplaceResultRow(
+                    applied = replaceApplied,
+                    running = replaceRunning,
+                    onUndo = onUndoReplace,
+                    onDiscard = onDiscardReplace,
+                )
+            } else if (replacePlan != null) {
+                ReplacePlanRow(
+                    plan = replacePlan,
+                    running = replaceRunning,
+                    onApply = onApplyReplace,
+                    onDiscard = onDiscardReplace,
+                )
+            }
             when {
                 query.isBlank() -> EmptyState(
                     Icons.Default.Search,
@@ -8145,5 +8240,111 @@ private fun BrandMark(modifier: Modifier = Modifier, compact: Boolean = false) {
             modifier = Modifier.size(iconSize),
             tint = primary,
         )
+    }
+}
+
+/**
+ * The planned replace, unapplied. It shows exactly what would change — how many replacements in how many
+ * files, the first changed lines, and every file that was left out — and the write only happens on the
+ * button below it.
+ */
+@Composable
+private fun ReplacePlanRow(
+    plan: ReplacePlan,
+    running: Boolean,
+    onApply: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    val skippedFiles = plan.binaryFiles + plan.unreadableFiles + plan.oversizedFiles
+    val notes = buildList {
+        if (plan.templateRejected) add(stringResource(R.string.replace_bad_replacement))
+        if (plan.files.isEmpty() && !plan.templateRejected) add(stringResource(R.string.replace_no_matches))
+        if (skippedFiles > 0) add(stringResource(R.string.replace_skipped, skippedFiles))
+        if (plan.skippedLongLines > 0) {
+            add(pluralStringResource(R.plurals.replace_long_lines, plan.skippedLongLines, plan.skippedLongLines))
+        }
+        if (plan.truncated) add(stringResource(R.string.search_truncated))
+        if (plan.heldBackDirectories.isNotEmpty()) {
+            add(stringResource(R.string.search_held_back, plan.heldBackDirectories.size))
+        }
+    }
+    val shown = plan.files.take(10)
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                stringResource(R.string.replace_summary, plan.totalReplacements, plan.changedFiles),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+            )
+            notes.forEach { note ->
+                Text(note, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            shown.forEach { file ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(file.path, Modifier.weight(1f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${file.replacements}×", fontSize = 11.sp, color = PocketGreen)
+                }
+                if (file.preview.isNotBlank()) {
+                    Text(
+                        file.preview,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (plan.files.size > shown.size) {
+                Text("+${plan.files.size - shown.size}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onDiscard, enabled = !running, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.cancel), fontSize = 11.sp)
+                }
+                Button(
+                    onClick = onApply,
+                    enabled = !running && !plan.templateRejected && plan.files.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.replace_apply), fontSize = 11.sp) }
+            }
+        }
+    }
+}
+
+/** What the last replace did, with the way back. */
+@Composable
+private fun ReplaceResultRow(
+    applied: ReplaceOutcome,
+    running: Boolean,
+    onUndo: () -> Unit,
+    onDiscard: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = PocketGreen.copy(alpha = 0.16f),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                pluralStringResource(
+                    R.plurals.replace_applied,
+                    applied.filesWritten,
+                    applied.filesWritten,
+                    applied.replacements,
+                ),
+                Modifier.weight(1f),
+                fontSize = 12.sp,
+            )
+            OutlinedButton(onClick = onUndo, enabled = !running) { Text(stringResource(R.string.replace_undo), fontSize = 11.sp) }
+            TextButton(onClick = onDiscard, enabled = !running) { Text(stringResource(R.string.replace_done), fontSize = 11.sp) }
+        }
     }
 }

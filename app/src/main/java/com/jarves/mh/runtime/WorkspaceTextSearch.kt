@@ -1,6 +1,7 @@
 package com.jarves.mh.runtime
 
-import com.jarves.mh.text.literalMatchRanges
+import com.jarves.mh.text.SearchOptions
+import com.jarves.mh.text.SearchQuery
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
@@ -37,6 +38,10 @@ data class WorkspaceSearchResult(
     val truncated: Boolean,
     /** First 8 hex of sha256 over the sorted candidate path list: equal id = same file set. */
     val fileSetId: String,
+    /** The options this result was produced with, so a replace can be judged by the same rules. */
+    val options: SearchOptions = SearchOptions(),
+    /** True when the text is not something this search can run with (an unusable pattern). */
+    val invalidQuery: Boolean = false,
 ) {
     /** Files that produced at least one match. */
     val matchingFiles: Int get() = matches.map { it.path }.distinct().size
@@ -77,22 +82,21 @@ data class WorkspaceSearchLimits(
 object WorkspaceTextSearch {
 
     /** Generated or private trees the browser shows but a text search refuses to enter. */
-    val HELD_BACK_DIRECTORIES = listOf(
-        ".git", ".gradle", ".kotlin", ".idea", ".cxx", ".externalNativeBuild", "build", "node_modules",
-    )
+    val HELD_BACK_DIRECTORIES = WorkspaceFileWalk.HELD_BACK_DIRECTORIES
 
-    private val BINARY_EXTENSIONS = setOf(
-        "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svgz", "apk", "aab", "apks", "jar", "aar",
-        "dex", "so", "dylib", "dll", "class", "zip", "gz", "xz", "zst", "bz2", "7z", "tar", "rar",
-        "pdf", "ttf", "otf", "woff", "woff2", "mp3", "m4a", "ogg", "opus", "wav", "flac", "mp4",
-        "mov", "mkv", "webm", "db", "sqlite", "keystore", "jks", "bin", "exe", "whl", "pyc", "nupkg",
-    )
-
-    fun search(root: File, query: String, limits: WorkspaceSearchLimits = WorkspaceSearchLimits()): WorkspaceSearchResult {
+    fun search(
+        root: File,
+        query: String,
+        limits: WorkspaceSearchLimits = WorkspaceSearchLimits(),
+        options: SearchOptions = SearchOptions(),
+    ): WorkspaceSearchResult {
         val needle = query.trim()
         val candidateRoot = root.takeIf { it.isDirectory }?.canonicalFile
             ?: return WorkspaceSearchResult.idle(needle)
         if (needle.isEmpty()) return WorkspaceSearchResult.idle(needle)
+        // One compiled query for the whole run: what the list shows is what a replace would rewrite.
+        val compiled = SearchQuery.compile(needle, options)
+            ?: return WorkspaceSearchResult.idle(needle).copy(invalidQuery = true, options = options)
 
         val candidates = collect(candidateRoot, limits)
         val matches = ArrayList<WorkspaceSearchMatch>()
@@ -129,7 +133,7 @@ object WorkspaceTextSearch {
             scanned++
             scannedBytes += bytes.size
             val relative = file.relativeTo(candidateRoot).invariantSeparatorsPath
-            collectMatches(relative, text, needle, limits, matches)
+            collectMatches(relative, text, compiled, limits, matches)
         }
 
         return WorkspaceSearchResult(
@@ -143,6 +147,7 @@ object WorkspaceTextSearch {
             heldBackDirectories = candidates.heldBack,
             truncated = truncated,
             fileSetId = fileSetId(candidates.files, candidateRoot),
+            options = options,
         )
     }
 
@@ -161,56 +166,18 @@ object WorkspaceTextSearch {
 
     private class Candidates(val files: List<File>, val heldBack: List<String>, val filesTruncated: Boolean)
 
+    /** The walk itself lives in [WorkspaceFileWalk] because a replace must see the same world. */
     private fun collect(root: File, limits: WorkspaceSearchLimits): Candidates {
-        val rootPath = root.toPath()
-        val files = ArrayList<File>()
-        val heldBack = LinkedHashSet<String>()
-        var filesTruncated = false
-        val pending = ArrayDeque<File>()
-        pending.add(root)
-        while (pending.isNotEmpty()) {
-            val directory = pending.removeFirst()
-            val children = runCatching { directory.listFiles() }.getOrNull() ?: continue
-            for (child in children.sortedBy { it.name }) {
-                val relative = runCatching { child.relativeTo(root).invariantSeparatorsPath }.getOrNull() ?: continue
-                if (isRuntimeMetadata(relative)) continue
-                // Never follow a link: the browser hides them and a search must not escape the root.
-                if (Files.isSymbolicLink(child.toPath())) continue
-                if (!runCatching { child.canonicalFile.toPath().startsWith(rootPath) }.getOrDefault(false)) continue
-                when {
-                    child.isDirectory -> {
-                        if (child.name in HELD_BACK_DIRECTORIES) {
-                            heldBack += relative
-                        } else {
-                            pending.add(child)
-                        }
-                    }
-                    child.isFile -> {
-                        if (looksBinary(child.name)) continue
-                        if (files.size >= limits.maxFiles) {
-                            filesTruncated = true
-                            continue
-                        }
-                        files.add(child)
-                    }
-                }
-            }
-        }
-        return Candidates(files, heldBack.sorted(), filesTruncated)
+        val candidates = WorkspaceFileWalk.collect(root, limits.maxFiles)
+        return Candidates(candidates.files, candidates.heldBack, candidates.filesTruncated)
     }
 
-    private fun looksBinary(name: String): Boolean {
-        val extension = name.substringAfterLast('.', "").lowercase()
-        return extension.isNotEmpty() && extension in BINARY_EXTENSIONS
-    }
-
-    private fun isRuntimeMetadata(relativePath: String): Boolean =
-        relativePath == ".claude" || relativePath == ".claude.json" || relativePath.startsWith(".claude/")
+    private fun isRuntimeMetadata(relativePath: String): Boolean = WorkspaceFileWalk.isRuntimeMetadata(relativePath)
 
     private fun collectMatches(
         relative: String,
         text: String,
-        needle: String,
+        query: SearchQuery,
         limits: WorkspaceSearchLimits,
         into: MutableList<WorkspaceSearchMatch>,
     ) {
@@ -218,7 +185,7 @@ object WorkspaceTextSearch {
         for (rawLine in text.lineSequence()) {
             lineNumber++
             if (into.size >= limits.maxMatches) return
-            val ranges = literalMatchRanges(rawLine, needle, limits.maxMatches - into.size)
+            val ranges = query.findAll(rawLine, limits.maxMatches - into.size)
             if (ranges.isEmpty()) continue
             val preview = rawLine.trim().let {
                 if (it.length <= limits.maxPreviewChars) it else it.take(limits.maxPreviewChars).trimEnd() + "…"

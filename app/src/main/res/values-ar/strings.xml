@@ -258,5 +258,34 @@
 <string name="android_estimated_remaining">متبقٍ نحو %1$s</string><string name="android_finishing_build">جارٍ إنهاء البناء…</string><string name="android_estimating_build">جارٍ تعلّم مدة البناء…</string><string name="android_usually_takes">عادةً نحو %1$s</string>
 <string name="diagnostics_title">تشخيصات المطور</string><string name="diagnostics_subtitle">الأداء والعمليات وتخزين بيئة التشغيل</string><string name="diagnostics_refresh">تحديث التشخيصات</string><string name="diagnostics_memory">الذاكرة</string><string name="diagnostics_app_memory">ذاكرة التطبيق</string><string name="diagnostics_java_heap">ذاكرة Java</string><string name="diagnostics_processes">العمليات النشطة</string><string name="diagnostics_no_processes">لا توجد عملية تطوير قيد التشغيل</string><string name="diagnostics_stop_inactive">إيقاف العمليات غير النشطة</string><string name="diagnostics_buffers">المخازن المؤقتة</string><string name="diagnostics_messages">رسائل المحادثة</string><string name="diagnostics_live_activity">صفوف النشاط المباشر</string><string name="diagnostics_terminal_buffer">نص الطرفية</string><string name="diagnostics_build_log">سجل البناء</string><string name="diagnostics_logcat_lines">أسطر السجل</string><string name="diagnostics_file_entries">إدخالات الملفات المحملة</string><string name="diagnostics_runtime_cache">ذاكرة مخرجات التشغيل</string><string name="diagnostics_cached_output">المخرجات المخزنة</string><string name="diagnostics_clear_cache">مسح المخرجات المؤقتة</string><string name="diagnostics_cache_disabled">يتاح بعد انتهاء العمل النشط.</string><string name="diagnostics_recent_exit">مشكلة حديثة في التطبيق</string><string name="diagnostics_no_recent_exit">لا يوجد تعطل أو عدم استجابة حديث</string><string name="diagnostics_inactive_stopped">تم إيقاف العمليات غير النشطة</string><string name="diagnostics_cache_busy">انتظر انتهاء العمل النشط قبل المسح</string><string name="diagnostics_cache_cleared">تم مسح مخرجات التشغيل المؤقتة</string>
     <string name="chat_find_in_conversation">بحث في المحادثة</string><string name="chat_find_placeholder">ابحث في الرسائل</string><string name="chat_find_no_matches">لا توجد نتائج</string><string name="chat_find_truncated">%1$d+ نتيجة</string><string name="chat_find_count">%1$d/%2$d</string><string name="chat_find_close">إغلاق البحث</string><string name="chat_message_actions">إجراءات الرسالة</string><string name="chat_copy_message">نسخ الرسالة</string><string name="chat_quote_message">اقتباس في الرد</string><string name="chat_message_copied">تم نسخ الرسالة</string><string name="chat_show_all_lines">عرض الكل · %1$d سطرًا</string><string name="chat_collapse_reply">طي الرد</string>
-    <string name="search_in_files">بحث في الملفات</string><string name="search_project_placeholder">ابحث في نص المشروع</string><string name="search_hint">بحث حرفي دون حساسية لحالة الأحرف. تُتخطى المجلدات المُنشأة.</string><string name="search_running">جارٍ البحث…</string><string name="search_no_matches">لا توجد نتائج</string><string name="search_match_count">%1$d نتيجة في %2$d ملفًا</string><string name="search_scanned">تم فحص %1$d من %2$d ملفًا</string><string name="search_truncated">النتائج مقتصرة</string><string name="search_held_back">تم تخطي %1$d مجلدًا</string><string name="search_line_column">السطر %1$d:%2$d</string><string name="search_close">إغلاق البحث</string><string name="search_clear">مسح البحث</string>
+    <string name="search_in_files">بحث في الملفات</string><string name="search_project_placeholder">ابحث في نص المشروع</string><string name="search_hint">يتم تخطي المجلدات المُنشأة. الخيارات تضيّق البحث.</string><string name="search_running">جارٍ البحث…</string><string name="search_no_matches">لا توجد نتائج</string><string name="search_match_count">%1$d نتيجة في %2$d ملفًا</string><string name="search_scanned">تم فحص %1$d من %2$d ملفًا</string><string name="search_truncated">النتائج مقتصرة</string><string name="search_held_back">تم تخطي %1$d مجلدًا</string><string name="search_line_column">السطر %1$d:%2$d</string><string name="search_close">إغلاق البحث</string><string name="search_clear">مسح البحث</string>
+
+    <string name="search_options_case">حساس لحالة الأحرف</string>
+    <string name="search_options_word">كلمات كاملة</string>
+    <string name="search_options_regex">نمط</string>
+    <string name="search_invalid_pattern">هذا النمط غير صالح</string>
+    <string name="replace_field_hint">استبدال بـ</string>
+    <string name="replace_preview_action">عرض التغييرات</string>
+    <string name="replace_apply">استبدال الكل</string>
+    <string name="replace_summary">%1$d استبدالًا في %2$d ملف</string>
+    <string name="replace_no_matches">لا شيء لاستبداله</string>
+    <string name="replace_bad_replacement">هذا الاستبدال لا يناسب النمط</string>
+    <string name="replace_invalid_pattern">هذا النمط غير صالح</string>
+    <string name="replace_failed">فشل الاستبدال</string>
+    <string name="replace_undo">تراجع</string>
+    <string name="replace_skipped">تم تخطي %1$d ملف (ثنائي أو غير نصي)</string>
+    <plurals name="replace_applied">
+        <item quantity="one">تم تغيير %1$d ملف · %2$d استبدال</item>
+        <item quantity="other">تم تغيير %1$d ملفات · %2$d استبدال</item>
+    </plurals>
+    <plurals name="replace_undone">
+        <item quantity="one">تم التراجع عن تغيير في %1$d ملف</item>
+        <item quantity="other">تم التراجع عن تغييرات في %1$d ملفات</item>
+    </plurals>
+
+    <string name="replace_done">تم</string>
+    <plurals name="replace_long_lines">
+        <item quantity="one">بقي %1$d سطر طويل جدًا دون تغيير</item>
+        <item quantity="other">بقيت %1$d أسطر طويلة جدًا دون تغيير</item>
+    </plurals>
 </resources>

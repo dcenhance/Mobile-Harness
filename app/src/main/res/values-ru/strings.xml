@@ -252,5 +252,34 @@
 <string name="android_estimated_remaining">Осталось около %1$s</string><string name="android_finishing_build">Завершение сборки…</string><string name="android_estimating_build">Оценка времени сборки…</string><string name="android_usually_takes">Обычно около %1$s</string>
 <string name="diagnostics_title">Диагностика разработчика</string><string name="diagnostics_subtitle">Производительность, процессы и хранилище</string><string name="diagnostics_refresh">Обновить диагностику</string><string name="diagnostics_memory">Память</string><string name="diagnostics_app_memory">Память приложения</string><string name="diagnostics_java_heap">Куча Java</string><string name="diagnostics_processes">Активные процессы</string><string name="diagnostics_no_processes">Процессы разработки не запущены</string><string name="diagnostics_stop_inactive">Остановить неактивные процессы</string><string name="diagnostics_buffers">Буферы приложения</string><string name="diagnostics_messages">Сообщения чата</string><string name="diagnostics_live_activity">Строки активности</string><string name="diagnostics_terminal_buffer">Текст терминала</string><string name="diagnostics_build_log">Журнал сборки</string><string name="diagnostics_logcat_lines">Строки журнала</string><string name="diagnostics_file_entries">Загруженные файлы</string><string name="diagnostics_runtime_cache">Кэш вывода среды</string><string name="diagnostics_cached_output">Кэшированный вывод</string><string name="diagnostics_clear_cache">Очистить временный вывод</string><string name="diagnostics_cache_disabled">Доступно после завершения активной работы.</string><string name="diagnostics_recent_exit">Недавняя проблема</string><string name="diagnostics_no_recent_exit">Недавних сбоев и ANR нет</string><string name="diagnostics_inactive_stopped">Неактивные процессы остановлены</string><string name="diagnostics_cache_busy">Дождитесь завершения активной работы</string><string name="diagnostics_cache_cleared">Временный вывод очищен</string>
     <string name="chat_find_in_conversation">Найти в разговоре</string><string name="chat_find_placeholder">Поиск сообщений</string><string name="chat_find_no_matches">Совпадений нет</string><string name="chat_find_truncated">%1$d+ совпадений</string><string name="chat_find_count">%1$d/%2$d</string><string name="chat_find_close">Закрыть поиск</string><string name="chat_message_actions">Действия с сообщением</string><string name="chat_copy_message">Копировать сообщение</string><string name="chat_quote_message">Цитировать в ответе</string><string name="chat_message_copied">Сообщение скопировано</string><string name="chat_show_all_lines">Показать всё · строк: %1$d</string><string name="chat_collapse_reply">Свернуть ответ</string>
-    <string name="search_in_files">Поиск в файлах</string><string name="search_project_placeholder">Поиск текста в проекте</string><string name="search_hint">Буквально, без учёта регистра. Созданные папки пропускаются.</string><string name="search_running">Идёт поиск…</string><string name="search_no_matches">Совпадений нет</string><string name="search_match_count">%1$d совпадений в %2$d файлах</string><string name="search_scanned">просмотрено %1$d из %2$d файлов</string><string name="search_truncated">результат ограничен</string><string name="search_held_back">пропущено папок: %1$d</string><string name="search_line_column">строка %1$d:%2$d</string><string name="search_close">Закрыть поиск</string><string name="search_clear">Очистить поиск</string>
+    <string name="search_in_files">Поиск в файлах</string><string name="search_project_placeholder">Поиск текста в проекте</string><string name="search_hint">Созданные папки пропускаются. Параметры уточняют поиск.</string><string name="search_running">Идёт поиск…</string><string name="search_no_matches">Совпадений нет</string><string name="search_match_count">%1$d совпадений в %2$d файлах</string><string name="search_scanned">просмотрено %1$d из %2$d файлов</string><string name="search_truncated">результат ограничен</string><string name="search_held_back">пропущено папок: %1$d</string><string name="search_line_column">строка %1$d:%2$d</string><string name="search_close">Закрыть поиск</string><string name="search_clear">Очистить поиск</string>
+
+    <string name="search_options_case">Учитывать регистр</string>
+    <string name="search_options_word">Слова целиком</string>
+    <string name="search_options_regex">Шаблон</string>
+    <string name="search_invalid_pattern">Такой шаблон недопустим</string>
+    <string name="replace_field_hint">Заменить на</string>
+    <string name="replace_preview_action">Показать изменения</string>
+    <string name="replace_apply">Заменить всё</string>
+    <string name="replace_summary">%1$d замен в %2$d файлах</string>
+    <string name="replace_no_matches">Нечего заменять</string>
+    <string name="replace_bad_replacement">Эта замена не подходит к шаблону</string>
+    <string name="replace_invalid_pattern">Такой шаблон недопустим</string>
+    <string name="replace_failed">Замена не удалась</string>
+    <string name="replace_undo">Отменить</string>
+    <string name="replace_skipped">%1$d файлов пропущено (двоичные или не текст)</string>
+    <plurals name="replace_applied">
+        <item quantity="one">%1$d файл изменён · %2$d замен</item>
+        <item quantity="other">%1$d файлов изменено · %2$d замен</item>
+    </plurals>
+    <plurals name="replace_undone">
+        <item quantity="one">Изменение в %1$d файле отменено</item>
+        <item quantity="other">Изменения в %1$d файлах отменены</item>
+    </plurals>
+
+    <string name="replace_done">Готово</string>
+    <plurals name="replace_long_lines">
+        <item quantity="one">%1$d очень длинная строка не изменена</item>
+        <item quantity="other">%1$d очень длинных строк не изменено</item>
+    </plurals>
 </resources>

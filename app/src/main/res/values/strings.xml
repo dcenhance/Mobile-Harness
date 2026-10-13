@@ -438,5 +438,34 @@
     <string name="chat_message_copied">Message copied</string>
     <string name="chat_show_all_lines">Show all · %1$d lines</string>
     <string name="chat_collapse_reply">Collapse reply</string>
-    <string name="search_in_files">Find in files</string><string name="search_project_placeholder">Search project text</string><string name="search_hint">Literal, case-insensitive. Generated folders are skipped.</string><string name="search_running">Searching…</string><string name="search_no_matches">No matches</string><string name="search_match_count">%1$d matches in %2$d files</string><string name="search_scanned">scanned %1$d of %2$d files</string><string name="search_truncated">result capped</string><string name="search_held_back">%1$d folders skipped</string><string name="search_line_column">line %1$d:%2$d</string><string name="search_close">Close search</string><string name="search_clear">Clear search</string>
+    <string name="search_in_files">Find in files</string><string name="search_project_placeholder">Search project text</string><string name="search_hint">Generated folders are skipped. Options narrow the search.</string><string name="search_running">Searching…</string><string name="search_no_matches">No matches</string><string name="search_match_count">%1$d matches in %2$d files</string><string name="search_scanned">scanned %1$d of %2$d files</string><string name="search_truncated">result capped</string><string name="search_held_back">%1$d folders skipped</string><string name="search_line_column">line %1$d:%2$d</string><string name="search_close">Close search</string><string name="search_clear">Clear search</string>
+
+    <string name="search_options_case">Case sensitive</string>
+    <string name="search_options_word">Whole words</string>
+    <string name="search_options_regex">Pattern</string>
+    <string name="search_invalid_pattern">That pattern is not valid</string>
+    <string name="replace_field_hint">Replace with</string>
+    <string name="replace_preview_action">Preview changes</string>
+    <string name="replace_apply">Replace all</string>
+    <string name="replace_summary">%1$d replacements in %2$d files</string>
+    <string name="replace_no_matches">Nothing to replace</string>
+    <string name="replace_bad_replacement">This replacement does not fit the pattern</string>
+    <string name="replace_invalid_pattern">That pattern is not valid</string>
+    <string name="replace_failed">The replace failed</string>
+    <string name="replace_undo">Undo</string>
+    <string name="replace_skipped">%1$d files skipped (binary or not text)</string>
+    <plurals name="replace_applied">
+        <item quantity="one">%1$d file changed · %2$d replacements</item>
+        <item quantity="other">%1$d files changed · %2$d replacements</item>
+    </plurals>
+    <plurals name="replace_undone">
+        <item quantity="one">Change in %1$d file undone</item>
+        <item quantity="other">Changes in %1$d files undone</item>
+    </plurals>
+
+    <string name="replace_done">Done</string>
+    <plurals name="replace_long_lines">
+        <item quantity="one">%1$d very long line left unchanged</item>
+        <item quantity="other">%1$d very long lines left unchanged</item>
+    </plurals>
 </resources>
