@@ -333,7 +333,7 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.9)
+### 6.1 Measured release evidence (1.0.7-dce.10)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
@@ -341,22 +341,33 @@ local file listing.
 
 | Lane | Artifact | Bytes | SHA-256 |
 | --- | --- | --- | --- |
+| debug | `debug/MobileHarness(1.0.7-dce.10).apk` | 107,139,053 | `f1a9ce4adcfea2768d8626919a458a1dbf5a9a7ff023ce68888fe868bc686791` |
+| release | `release/MobileHarness(1.0.7-dce.10).apk` | 89,578,452 | `0449b97ae5d5263b725259ec3e91be58276ec44b3f3d725fbc558659e821c156` |
+
+- Both lane descriptors carry `versionName 1.0.7-dce.10`, `versionCode 18`, `packageName com.jarves.mh`,
+  the SHA-256 of the served bytes, the Android debug lab certificate
+  (`ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d`, not a Play key) and `notices` for
+  all 21 languages; the root `update.json` points at the release bytes, and `release/latest.apk` and the
+  root `latest.apk` serve the release bytes.
+- JVM tests for this build: **250, 0 failures, 0 skipped** (238 before, 12 new in `FolderImportTest`,
+  which copies real trees on disk and checks the content byte for byte).
+- The flat alias `MobileHarness.apk` behaved as measured in dce.9: right after the publish it answered
+  a `404` with a small JSON body from a dynamic backend for a few minutes while every lane URL was
+  already correct, then settled and served the release bytes. Same open item in the website layer, not a
+  property of this build.
+
+### 6.2 Measured release evidence (1.0.7-dce.9)
+
+| Lane | Artifact | Bytes | SHA-256 |
+| --- | --- | --- | --- |
 | debug | `debug/MobileHarness(1.0.7-dce.9).apk` | 107,075,341 | `d476da0e84fc93660cc05a13c69f92645ab0d928cdedd841b4d4bbcdf4e7d902` |
 | release | `release/MobileHarness(1.0.7-dce.9).apk` | 89,528,228 | `deb1639fc71ffe9a12156e326abf5a44cd14de9ee78bdf411d02f9ba827b4e90` |
 
-- Both lane descriptors carry `versionName 1.0.7-dce.9`, `versionCode 17`, `packageName com.jarves.mh`,
-  the SHA-256 of the served bytes, the Android debug lab certificate
-  (`ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d`, not a Play key) and `notices` for
-  all 21 languages; the root `update.json` points at the release bytes, and `release/latest.apk`, the
-  root `latest.apk` and the flat `MobileHarness.apk` all serve the release bytes.
-- JVM tests for this build: **238, 0 failures, 0 skipped** (221 before, 17 new — 10 in
-  `DeviceQueryServerTest` over a real loopback socket, 4 in `AgentDeviceBridgeTest`, 3 in the prompt
-  overlay).
-- **Measured, not fixed here:** the flat alias `MobileHarness.apk` answered *intermittently* for a few
-  minutes after the publish — plain requests alternated between `200` with the correct bytes and a
-  `404` with a small JSON body (`{"ok": false, "error": "not_found"}`) from a dynamic backend, while the
-  lane URLs and the versioned files were stable throughout. Once settled it served the release bytes
-  exactly (hashed above). Worth a look in the website/archive layer; it never affected any URL the
+- 21 language tables in both descriptors, `versionCode 17`, same debug lab certificate; **238 tests, 0 failures**.
+- The flat alias answered intermittently for several minutes after the publish: plain requests alternated
+  between `200` with the correct bytes and a `404` with `{"ok": false, "error": "not_found"}` from a
+  dynamic backend, while the lane URLs and versioned files were stable throughout. Once settled it served
+  the release bytes exactly. Worth a look in the website/archive layer; it never affected any URL the
   archive page or the updater advertises.
 
 ### Honest limits of the earlier internal placement (still true)
