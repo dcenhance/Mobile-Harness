@@ -308,7 +308,7 @@ The release lane is signed with the **Android debug lab certificate**, not a Pla
 upstream signs with its own `MH_UPLOAD_*` keystore, which this fork does not hold, and an unsigned
 lane cannot be published at all.
 
-### 6.1 Measured release evidence (1.0.7-dce.8)
+### 6.1 Measured release evidence (1.0.7-dce.9)
 
 Every value below was read back from `https://dcenhancements.com/archive/projects/apks/MobileHarness/`
 after the publish — the public archive is not login-gated, so this is served-bytes evidence, not a
@@ -316,14 +316,23 @@ local file listing.
 
 | Lane | Artifact | Bytes | SHA-256 |
 | --- | --- | --- | --- |
-| debug | `debug/MobileHarness(1.0.7-dce.8).apk` | 107,023,361 | `8a8bd68cec4ee3a1eeb513a66292964bc85b1911f864c8494de9f4a14dd6c0fc` |
-| release | `release/MobileHarness(1.0.7-dce.8).apk` | 89,490,016 | `3386b7d9c460b86635e1b9a99d8c4a22e9182b8ea61317bbcbedc3f55fd55146` |
+| debug | `debug/MobileHarness(1.0.7-dce.9).apk` | 107,075,341 | `d476da0e84fc93660cc05a13c69f92645ab0d928cdedd841b4d4bbcdf4e7d902` |
+| release | `release/MobileHarness(1.0.7-dce.9).apk` | 89,528,228 | `deb1639fc71ffe9a12156e326abf5a44cd14de9ee78bdf411d02f9ba827b4e90` |
 
-- Both lane descriptors carry `versionName 1.0.7-dce.8`, `versionCode 16`, `packageName com.jarves.mh`,
-  the SHA-256 of the served bytes and `notices` for all 21 languages; the root `update.json` points at
-  the release bytes, and `release/latest.apk` and the root `latest.apk` serve the release bytes.
-- JVM tests for this build: **221, 0 failures, 0 skipped** (195 before, 26 new in `CodeHighlightTest`
-  and `CodeHighlightTransformationTest`).
+- Both lane descriptors carry `versionName 1.0.7-dce.9`, `versionCode 17`, `packageName com.jarves.mh`,
+  the SHA-256 of the served bytes, the Android debug lab certificate
+  (`ab32733965c6871b367fd5168df180b99b87408812365a79280f386a2673173d`, not a Play key) and `notices` for
+  all 21 languages; the root `update.json` points at the release bytes, and `release/latest.apk`, the
+  root `latest.apk` and the flat `MobileHarness.apk` all serve the release bytes.
+- JVM tests for this build: **238, 0 failures, 0 skipped** (221 before, 17 new — 10 in
+  `DeviceQueryServerTest` over a real loopback socket, 4 in `AgentDeviceBridgeTest`, 3 in the prompt
+  overlay).
+- **Measured, not fixed here:** the flat alias `MobileHarness.apk` answered *intermittently* for a few
+  minutes after the publish — plain requests alternated between `200` with the correct bytes and a
+  `404` with a small JSON body (`{"ok": false, "error": "not_found"}`) from a dynamic backend, while the
+  lane URLs and the versioned files were stable throughout. Once settled it served the release bytes
+  exactly (hashed above). Worth a look in the website/archive layer; it never affected any URL the
+  archive page or the updater advertises.
 
 ### Honest limits of the earlier internal placement (still true)
 
